@@ -1,0 +1,33 @@
+# Esténként 20 percenként lefut, és elküldi azoknak a telefonoknak az értesítést, amelyeknél elérkezett a beállított időpont.
+# Az időpontokat (UTC) úgy választottuk, hogy télen és nyáron is lefedjék a 17:00–22:00 közötti budapesti időt.
+name: Esti értesítés
+
+on:
+  schedule:
+    - cron: '*/20 15-21 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: esti-ertesites
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: scripts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --no-save --no-audit --no-fund firebase-admin@12.7.0
+      - run: node notify.mjs
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          SITE_URL: https://szerdori.github.io/hazi-naplo/

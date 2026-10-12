@@ -43,6 +43,25 @@ Nyisd meg a címet a telefonon, lépj be Google-fiókkal, majd:
 - **Android (Chrome):** menü → *Hozzáadás a kezdőképernyőhöz*
 - **iPhone (Safari):** Megosztás → *Főképernyőhöz adás*
 
+## Esti értesítés (Android)
+Este, a beállított időpontban értesítés jön, ha aznap még nem rögzítettél semmit, vagy ha maradt esedékes teendő. Ha nincs mit mondani, vagy már megvan a reális napod, nem jön értesítés.
+
+Hogyan működik: a telefon a Firebase Cloud Messagingen keresztül kapja az értesítést (`firebase-messaging-sw.js`). A küldést a GitHub Actions végzi: a `.github/workflows/esti-ertesites.yml` esténként 20 percenként lefuttatja a `scripts/notify.mjs` programot, ami megnézi, kinek kell szólni.
+
+Egyszeri beállítás:
+1. **Web Push kulcs:** Firebase konzol → fogaskerék → **Project settings → Cloud Messaging** → lent **Web configuration → Web Push certificates → Generate key pair**. A megjelenő kulcs nyilvános; ez kerül a `firebase-config.js` `FIREBASE_VAPID_KEY` sorába.
+2. **Kiszolgálói kulcs (titkos):** Firebase konzol → **Project settings → Service accounts → Generate new private key → Generate key**. Letöltődik egy `.json` fájl.
+   - GitHub: a tárolóban **Settings → Secrets and variables → Actions → New repository secret**
+   - Name: `FIREBASE_SERVICE_ACCOUNT`, Secret: a letöltött fájl teljes tartalma (Jegyzettömbbel megnyitva, mindent kijelölve)
+   - Utána töröld a letöltött fájlt a gépről. Ezt a kulcsot ne küldd el senkinek, chatbe se.
+3. **Telefonon:** nyisd meg az appot (lehetőleg a kezdőképernyőről), **Beállítások → Esti értesítés → Bekapcsolás ezen a telefonon**, és engedélyezd az értesítéseket. A **Próbaértesítés** gombbal ellenőrizheted, hogy megjelenik-e.
+4. **Ellenőrzés:** a GitHub-tárolóban az **Actions** fülön látszanak a futások. Kézzel is indítható: **Esti értesítés → Run workflow**.
+
+Tudnivalók:
+- A futások naplója nyilvános, ezért a program csak darabszámokat ír ki, nevet, e-mailt vagy teendőt soha.
+- A GitHub az ütemezett futásokat néha 5–20 percet késve indítja, ezért az értesítés a beállított időpont után kicsivel érkezhet.
+- Ha a tárolóban 60 napig nem történik változás, a GitHub szünetelteti az ütemezést; ilyenkor az Actions fülön egy gombbal újra bekapcsolható.
+
 ## Adatok átköltöztetése a prototípusból
 A claude.ai-os változatban: **Szabályok → Adatok → Adatok másolása (JSON)**. Az új appban: **Szabályok → Adatok → Importálás**, majd illeszd be és nyomd meg a **Betöltés** gombot.
 

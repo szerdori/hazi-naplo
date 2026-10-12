@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "description": "Esti értesítések küldése a MomAssistant apphoz (GitHub Actions futtatja).",
+  "type": "module"
+}
