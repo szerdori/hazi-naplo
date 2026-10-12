@@ -75,6 +75,9 @@ section { display: grid; gap: 12px; margin-top: 22px; }
 .row .small { font-size: 13px; color: var(--muted); }
 .x { border: 0; background: transparent; color: var(--muted); width: 36px; height: 36px; border-radius: 10px; flex: none; font-size: 18px; line-height: 1; }
 .x:hover { background: var(--bg); color: var(--late); }
+.x.edit:hover { color: var(--accent); }
+.x.edit { display: inline-grid; place-items: center; }
+form.rename { flex: 1; }
 .check { width: 26px; height: 26px; border-radius: 8px; border: 2px solid var(--line); background: transparent; flex: none; }
 .check:hover { border-color: var(--accent); }
 .group-label { font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); padding: 10px 14px 4px; background: var(--bg); border-top: 1px solid var(--line); }
@@ -113,9 +116,25 @@ nav.tabs button { border: 0; background: transparent; padding: 10px 4px 12px; fo
 nav.tabs button svg { width: 22px; height: 22px; }
 nav.tabs button[aria-current="page"] { color: var(--accent); }
 
-.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 10px 10px 16px; border-radius: 12px; display: flex; gap: 12px; align-items: center; z-index: 20; max-width: calc(100% - 32px); font-size: 15px; }
+.toast { width: max-content; position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 10px 10px 16px; border-radius: 12px; display: flex; gap: 12px; align-items: center; z-index: 20; max-width: calc(100% - 32px); font-size: 15px; }
 .toast button { background: transparent; border: 0; color: var(--bg); font-weight: 700; text-decoration: underline; padding: 6px 8px; }
 @media (prefers-reduced-motion: reduce) { .tile { transition: none; } }
+.fam { display: grid; gap: 10px; }
+.fam-person { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; display: grid; gap: 8px; }
+.fam-name { font-family: var(--font-display); font-weight: 700; font-size: 16px; }
+.pick.fam-chip { display: grid; text-align: left; border-radius: 12px; padding: 7px 12px; background: var(--bg); }
+.pick.fam-chip .small { margin-left: 0; }
+.pick.fam-chip.due { background: var(--due-soft); border-color: transparent; }
+.pick.fam-chip.due .small { color: var(--due); font-weight: 600; }
+.pick.fam-chip.late { background: var(--late-soft); border-color: transparent; }
+.pick.fam-chip.late .small { color: var(--late); font-weight: 600; }
+.pick.fam-chip.flash { border-color: var(--accent); background: var(--accent-soft); }
+.pick.tag { display: inline-flex; align-items: center; gap: 2px; padding: 2px 2px 2px 12px; }
+.pick.tag .x { width: 30px; height: 30px; }
+.label { font-weight: 600; font-size: 14px; }
+details.fam-rules { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+details.fam-rules summary { padding: 12px 14px; cursor: pointer; font-weight: 600; }
+details.fam-rules .list { border: 0; border-top: 1px solid var(--line); border-radius: 0; }
 .login { display: grid; gap: 14px; justify-items: start; margin-top: 28px; }
 </style>
 </head>
@@ -170,7 +189,7 @@ const S = {
   tab: lsGet('tab') || 'ma',
   chores: [], logs: {}, items: [], config: { noShopDays: [], stores: [] },
   loaded: { chores: false, logs: false, items: false, config: false },
-  db: null, dbMissing: false, flash: null, confirmDel: null, copyText: null, copyTitle: '',
+  db: null, dbMissing: false, flash: null, confirmDel: null, copyText: null, copyTitle: '', famOpen: new Set(),
 };
 
 // ---------- storage ----------
@@ -232,9 +251,49 @@ function allEntries() {
   for (const k in S.logs) for (const e of (S.logs[k].entries || [])) out.push(e);
   return out.sort((a, b) => a.t - b.t);
 }
-function choreName(id) { const c = S.chores.find(c => c.id === id); return c ? c.name : null; }
-function sortedChores() { return S.chores.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name, 'hu')); }
+function sortedChores() { return S.chores.filter(c => c.group !== 'apolas').sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name, 'hu')); }
+// Family care: every person × activity pair is a task. Its stored doc exists only once its rule was changed.
+// People and activities carry a stable id (first derived from the name), so renaming keeps their history.
+const DEFAULT_FAMILY = { people: ['Anya', 'Miró', 'Maja'], activities: ['Hajmosás', 'Körömvágás', 'Hajvágás', 'Fogkefecsere', 'Ágyneműcsere'] };
+const slug = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const normList = l => (l || []).map(x => typeof x === 'string' ? { id: slug(x), name: x } : x);
+const family = () => { const f = S.config.family || DEFAULT_FAMILY; return { people: normList(f.people), activities: normList(f.activities) }; };
+const famId = (p, a) => 'fam-' + p.id + '--' + a.id;
+function freshId(name, list) { let id = slug(name) || 'x', n = 2; while (list.some(x => x.id === id)) id = slug(name) + '-' + n++; return id; }
+function famTasks() {
+  const f = family(), out = [];
+  f.people.forEach(p => f.activities.forEach(a => {
+    const id = famId(p, a);
+    const doc = S.chores.find(c => c.id === id);
+    out.push({ id, name: a.name, person: p.name, group: 'apolas', rule: (doc && doc.rule) || { mode: 'auto' } });
+  }));
+  return out;
+}
+// Inline rename: one field at a time, identified by kind ('chore' | 'store' | 'people' | 'activities') and key.
+const isEditing = (kind, key) => S.editing && S.editing.kind === kind && S.editing.key === String(key);
+const PENCIL = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>';
+const editBtn = (kind, key, label) => '<button class="x edit" aria-label="' + esc(label) + ' átnevezése" data-act="edit" data-kind="' + kind + '" data-key="' + esc(key) + '">' + PENCIL + '</button>';
+const renameForm = (kind, key, value) => '<form class="inline rename" data-form="rename" data-kind="' + kind + '" data-key="' + esc(key) + '">' +
+  '<input id="rename-input" value="' + esc(value) + '" required aria-label="Új név"><button class="btn sm" type="submit">Mentés</button><button class="btn ghost sm" type="button" data-act="cancel-edit">Mégse</button></form>';
+function findTask(id) { return S.chores.find(c => c.id === id && c.group !== 'apolas') || famTasks().find(t => t.id === id) || null; }
+function choreName(id) { const c = findTask(id); return c ? c.name : null; }
 function daysLabel(days) { return WEEK.filter(d => days.includes(d)).map(d => WDS[d]).join(', '); }
+// Every tracked task belongs to one group; all groups share the same learning and rules.
+const GROUPS = [
+  { id: 'haz', title: 'Házimunka', ma: 'Mit csináltál?', hint: 'Egy koppintás = kész', prefix: '',
+    empty: 'Még nincs házimunka.', ph: 'Új házimunka, pl. Porszívózás' },
+  { id: 'robot', title: 'Robotporszívó zónák', ma: 'Robotporszívó', hint: 'Melyik zónát takarította?', prefix: 'Robot: ',
+    empty: 'Még nincs zóna. Add hozzá a lakás részeit, amiket a robottal külön takaríttatsz.', ph: 'Új zóna, pl. Konyha' },
+];
+const groupOf = c => (c && GROUPS.some(g => g.id === c.group)) ? c.group : 'haz';
+function taskLabel(c) {
+  if (c.group === 'apolas') return c.person + ' – ' + c.name;
+  return GROUPS.find(g => g.id === groupOf(c)).prefix + c.name;
+}
+function entryLabel(e) {
+  const c = findTask(e.chore);
+  return c ? taskLabel(c) : (e.name || 'Törölt teendő');
+}
 
 function choreInfo(c, entries) {
   const times = entries.filter(e => e.chore === c.id).map(e => e.t);
@@ -244,7 +303,7 @@ function choreInfo(c, entries) {
   let due = null, freq = '', learned = false;
   if (r.mode === 'every' && r.every > 0) {
     freq = r.every === 1 ? 'naponta (szabály)' : r.every + ' naponta (szabály)';
-    due = last ? addDays(last, r.every) : today;
+    due = last ? addDays(last, r.every) : null;
   } else if (r.mode === 'days' && r.days && r.days.length) {
     freq = daysLabel(r.days) + ' (szabály)';
     let s = last ? addDays(last, 1) : today;
@@ -258,7 +317,7 @@ function choreInfo(c, entries) {
       freq = 'naponta kb. ' + perDay + '×';
       due = times.filter(t => t >= today).length >= perDay ? addDays(today, 1) : today;
     } else {
-      freq = 'kb. ' + fmtNum(iv) + ' naponta';
+      freq = fmtNum(iv) === '1' ? 'naponta' : 'kb. ' + fmtNum(iv) + ' naponta';
       due = addDays(last, Math.max(1, Math.round(iv)));
     }
   } else {
@@ -291,7 +350,8 @@ function itemInfo(it) {
 function logChore(choreId, ts = Date.now()) {
   const k = dayKey(ts);
   const cur = S.logs[k] || { date: k, entries: [] };
-  const entry = { id: rid(), chore: choreId, name: choreName(choreId) || '', t: ts };
+  const task = findTask(choreId);
+  const entry = { id: rid(), chore: choreId, name: task ? taskLabel(task) : '', t: ts };
   S.logs = { ...S.logs, [k]: { date: k, entries: [...cur.entries, entry] } };
   persist('logs/' + k, () => S.logs[k]);
   return { k, id: entry.id };
@@ -340,34 +400,58 @@ function viewMa() {
   const today = sod(Date.now());
   const chores = sortedChores().map(c => ({ c, i: choreInfo(c, entries) }))
     .sort((a, b) => (a.i.due ?? Infinity) - (b.i.due ?? Infinity));
-  const dueCount = chores.filter(x => x.i.due != null && x.i.due <= today).length;
+  const fam = famTasks().map(c => ({ c, i: choreInfo(c, entries) }));
+  const dueCount = [...chores, ...fam].filter(x => x.i.due != null && x.i.due <= today).length;
   const todays = entries.filter(e => e.t >= today).reverse();
   setHead('Ma', dueCount ? dueCount + ' teendő esedékes ma vagy már késésben van.' : 'Koppints arra, amit elvégeztél.');
   let h = dbBanner();
   if (!todays.length && new Date().getHours() >= 18) h += '<div class="banner warn">Ma még nincs bejegyzés. Mit sikerült megcsinálni?</div>';
-  h += '<section><div class="section-head"><h2>Mit csináltál?</h2><span class="hint">Egy koppintás = kész</span></div>';
-  if (!S.chores.length) h += '<div class="list"><div class="empty">Még nincs házimunka a listán. A Szabályok fülön adhatsz hozzá.</div></div>';
-  else h += '<div class="tiles">' + chores.map(({ c, i }) =>
-    '<button class="tile' + (S.flash === c.id ? ' flash' : '') + '" data-act="log" data-id="' + esc(c.id) + '">' +
-      '<span class="nm">' + esc(c.name) + '</span>' +
-      dueChip(i.due) +
-      '<span class="meta">' + (i.last ? 'Utoljára: ' + relDay(i.last) : 'Még nem rögzítetted') + '<br>' + esc(i.freq) + '</span>' +
-    '</button>').join('') + '</div>';
-  h += '</section>';
+  for (const g of GROUPS) {
+    const list = chores.filter(x => groupOf(x.c) === g.id);
+    if (!list.length && g.id !== 'haz') continue;
+    h += '<section><div class="section-head"><h2>' + g.ma + '</h2><span class="hint">' + g.hint + '</span></div>';
+    if (!list.length) h += '<div class="list"><div class="empty">' + g.empty + ' A Szabályok fülön adhatsz hozzá.</div></div>';
+    else h += '<div class="tiles">' + list.map(({ c, i }) =>
+      '<button class="tile' + (S.flash === c.id ? ' flash' : '') + '" data-act="log" data-id="' + esc(c.id) + '">' +
+        '<span class="nm">' + esc(c.name) + '</span>' +
+        dueChip(i.due) +
+        '<span class="meta">' + (i.last ? 'Utoljára: ' + relDay(i.last) : 'Még nem rögzítetted') + '<br>' + esc(i.freq) + '</span>' +
+      '</button>').join('') + '</div>';
+    h += '</section>';
+  }
+  if (fam.length) {
+    h += '<section><div class="section-head"><h2>Család</h2><span class="hint">Koppints, ha megvolt</span></div><div class="fam">';
+    for (const p of family().people) {
+      const mine = fam.filter(x => x.c.person === p.name).sort((a, b) => (a.i.due ?? Infinity) - (b.i.due ?? Infinity));
+      h += '<div class="fam-person"><div class="fam-name">' + esc(p.name) + '</div><div class="chips">' + mine.map(({ c, i }) => famChip(c, i)).join('') + '</div></div>';
+    }
+    h += '</div></section>';
+  }
   h += '<section><div class="section-head"><h2>Mai bejegyzések</h2><span class="hint">' + todays.length + ' db</span></div><div class="list">';
   h += todays.length ? todays.map(e => entryRow(e)).join('') : '<div class="empty">Még semmi. Elfelejtettél valamit tegnapról? A Napló fülön pótolhatod.</div>';
   h += '</div></section>';
   return h;
 }
+function famChip(c, i) {
+  const d = i.due == null ? null : diffDays(i.due, Date.now());
+  const cls = d == null ? '' : d < 0 ? ' late' : d === 0 ? ' due' : '';
+  const sub = d == null ? (i.last ? relDay(i.last) : 'még nincs adat')
+    : d < 0 ? (-d) + ' napja esedékes' : d === 0 ? 'ma esedékes' : d === 1 ? 'holnap' : d + ' nap múlva';
+  return '<button class="pick fam-chip' + cls + (S.flash === c.id ? ' flash' : '') + '" data-act="log" data-id="' + esc(c.id) + '" aria-label="' + esc(c.person + ': ' + c.name + ', ' + sub) + '">' +
+    '<span>' + esc(c.name) + '</span><span class="small">' + esc(sub) + '</span></button>';
+}
 function entryRow(e) {
-  return '<div class="row"><span class="time">' + hm(e.t) + '</span><span class="grow">' + esc(choreName(e.chore) || e.name || 'Törölt teendő') + '</span>' +
+  return '<div class="row"><span class="time">' + hm(e.t) + '</span><span class="grow">' + esc(entryLabel(e)) + '</span>' +
     '<button class="x" aria-label="Bejegyzés törlése" data-act="del-entry" data-k="' + dayKey(e.t) + '" data-id="' + esc(e.id) + '">×</button></div>';
 }
 function viewNaplo() {
   setHead('Napló', 'Az elmúlt két hét. Itt pótolhatod, ha valamit elfelejtettél beírni.');
   const entries = allEntries();
   const now = new Date();
-  const opts = sortedChores().map(c => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('');
+  const opts = GROUPS.map(g => {
+    const cs = sortedChores().filter(c => groupOf(c) === g.id);
+    return cs.length ? '<optgroup label="' + esc(g.title) + '">' + cs.map(c => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('') + '</optgroup>' : '';
+  }).join('') + '<optgroup label="Családi ápolás">' + famTasks().map(c => '<option value="' + esc(c.id) + '">' + esc(taskLabel(c)) + '</option>').join('') + '</optgroup>';
   let h = dbBanner();
   h += '<section><h2>Pótlás</h2><form class="inline" data-form="backfill">' +
     '<select id="bf-chore" required aria-label="Házimunka">' + opts + '</select>' +
@@ -436,6 +520,21 @@ function viewBolt() {
 function copyBox() {
   return '<div class="card"><div class="hint">Nem sikerült automatikusan a vágólapra tenni. Jelöld ki és másold ki innen:</div><textarea id="copy-area" readonly>' + esc(S.copyText) + '</textarea><button class="btn ghost sm" data-act="copy-close">Bezárás</button></div>';
 }
+function ruleRow(c, deletable) {
+  const r = c.rule || { mode: 'auto' };
+  let extra = '';
+  if (r.mode === 'days') extra = '<div class="days">' + WEEK.map(d => { const on = (r.days || []).includes(d); return '<button class="day' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-act="toggle-cday" data-id="' + esc(c.id) + '" data-d="' + d + '">' + WDS[d] + '</button>'; }).join('') + '</div>';
+  if (r.mode === 'every') extra = '<label class="inline" style="align-items:center">Minden <input type="number" min="1" max="365" style="width:80px" id="ev-' + esc(c.id) + '" data-change="every" data-id="' + esc(c.id) + '" value="' + (r.every || 7) + '"> napon</label>';
+  const confirm = deletable && S.confirmDel === c.id
+    ? '<div class="inline"><span class="hint" style="align-self:center">Törlöd? A korábbi bejegyzések megmaradnak.</span><button class="btn danger sm" data-act="del-chore" data-id="' + esc(c.id) + '">Törlés</button><button class="btn ghost sm" data-act="cancel-del">Mégse</button></div>' : '';
+  if (deletable && isEditing('chore', c.id)) return '<div class="rule-row">' + renameForm('chore', c.id, c.name) + '</div>';
+  return '<div class="rule-row"><div class="rule-top"><span class="nm">' + esc(c.name) + '</span>' +
+    '<select id="mode-' + esc(c.id) + '" data-change="mode" data-id="' + esc(c.id) + '" aria-label="Ütemezés: ' + esc(taskLabel(c)) + '">' +
+      '<option value="auto"' + (r.mode === 'auto' || !r.mode ? ' selected' : '') + '>Tanulja meg magától</option>' +
+      '<option value="days"' + (r.mode === 'days' ? ' selected' : '') + '>Fix napokon</option>' +
+      '<option value="every"' + (r.mode === 'every' ? ' selected' : '') + '>X naponta</option></select>' +
+    (deletable ? editBtn('chore', c.id, c.name) + '<button class="x" aria-label="Törlés" data-act="ask-del" data-id="' + esc(c.id) + '">×</button>' : '') + '</div>' + extra + confirm + '</div>';
+}
 function viewSzabaly() {
   setHead('Szabályok', 'Amit előre tudsz, azt itt adhatod meg. A szabály felülírja a megfigyelt mintát.');
   const no = S.config.noShopDays || [];
@@ -445,25 +544,32 @@ function viewSzabaly() {
     WEEK.map(d => '<button class="day' + (no.includes(d) ? ' off' : '') + '" aria-pressed="' + no.includes(d) + '" data-act="toggle-noshop" data-d="' + d + '">' + WDS[d] + '</button>').join('') +
     '</div><div class="hint">Ezekre a napokra az app nem tervez bevásárlást.</div></div></section>';
   h += '<section><h2>Boltok</h2><div class="list">' +
-    (stores.length ? stores.map((s, i) => '<div class="row"><span class="grow">' + esc(s) + '</span><button class="x" aria-label="Bolt törlése" data-act="del-store" data-i="' + i + '">×</button></div>').join('') : '<div class="empty">Még nincs bolt megadva.</div>') +
+    (stores.length ? stores.map((s, i) => isEditing('store', i)
+      ? '<div class="row">' + renameForm('store', i, s) + '</div>'
+      : '<div class="row"><span class="grow">' + esc(s) + '</span>' + editBtn('store', i, s) + '<button class="x" aria-label="Bolt törlése" data-act="del-store" data-i="' + i + '">×</button></div>').join('') : '<div class="empty">Még nincs bolt megadva.</div>') +
     '</div><form class="inline" data-form="add-store"><input id="store-name" placeholder="Pl. Lidl, DM, piac" required aria-label="Bolt neve"><button class="btn" type="submit">Hozzáad</button></form></section>';
-  h += '<section><h2>Házimunkák</h2><div class="list">';
-  if (!S.chores.length) h += '<div class="empty">Még nincs házimunka. Add hozzá lent.</div>';
-  h += sortedChores().map(c => {
-    const r = c.rule || { mode: 'auto' };
-    let extra = '';
-    if (r.mode === 'days') extra = '<div class="days">' + WEEK.map(d => { const on = (r.days || []).includes(d); return '<button class="day' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-act="toggle-cday" data-id="' + esc(c.id) + '" data-d="' + d + '">' + WDS[d] + '</button>'; }).join('') + '</div>';
-    if (r.mode === 'every') extra = '<label class="inline" style="align-items:center">Minden <input type="number" min="1" max="60" style="width:80px" id="ev-' + esc(c.id) + '" data-change="every" data-id="' + esc(c.id) + '" value="' + (r.every || 7) + '"> napon</label>';
-    const confirm = S.confirmDel === c.id
-      ? '<div class="inline"><span class="hint" style="align-self:center">Törlöd? A korábbi bejegyzések megmaradnak.</span><button class="btn danger sm" data-act="del-chore" data-id="' + esc(c.id) + '">Törlés</button><button class="btn ghost sm" data-act="cancel-del">Mégse</button></div>' : '';
-    return '<div class="rule-row"><div class="rule-top"><span class="nm">' + esc(c.name) + '</span>' +
-      '<select id="mode-' + esc(c.id) + '" data-change="mode" data-id="' + esc(c.id) + '" aria-label="Ütemezés: ' + esc(c.name) + '">' +
-        '<option value="auto"' + (r.mode === 'auto' || !r.mode ? ' selected' : '') + '>Tanulja meg magától</option>' +
-        '<option value="days"' + (r.mode === 'days' ? ' selected' : '') + '>Fix napokon</option>' +
-        '<option value="every"' + (r.mode === 'every' ? ' selected' : '') + '>X naponta</option></select>' +
-      '<button class="x" aria-label="Házimunka törlése" data-act="ask-del" data-id="' + esc(c.id) + '">×</button></div>' + extra + confirm + '</div>';
-  }).join('');
-  h += '</div><form class="inline" data-form="add-chore"><input id="chore-name" placeholder="Új házimunka, pl. Porszívózás" required aria-label="Házimunka neve"><button class="btn" type="submit">Hozzáad</button></form></section>';
+  for (const g of GROUPS) {
+    const inGroup = sortedChores().filter(c => groupOf(c) === g.id);
+    h += '<section><h2>' + g.title + '</h2><div class="list">';
+    if (!inGroup.length) h += '<div class="empty">' + g.empty + '</div>';
+    h += inGroup.map(c => ruleRow(c, true)).join('');
+    h += '</div><form class="inline" data-form="add-chore" data-group="' + g.id + '"><input id="chore-name-' + g.id + '" placeholder="' + esc(g.ph) + '" required aria-label="' + esc(g.ph) + '"><button class="btn" type="submit">Hozzáad</button></form></section>';
+  }
+  const f = family();
+  const tag = (x, key, act, i) => isEditing(key, x.id) ? renameForm(key, x.id, x.name)
+    : '<span class="pick tag">' + esc(x.name) + editBtn(key, x.id, x.name) + '<button class="x" aria-label="' + esc(x.name) + ' törlése" data-act="' + act + '" data-i="' + i + '">×</button></span>';
+  h += '<section><h2>Családi ápolás</h2><div class="card">' +
+    '<div class="label">Családtagok</div><div class="chips">' + f.people.map((p, i) => tag(p, 'people', 'del-person', i)).join('') + '</div>' +
+    '<form class="inline" data-form="add-person"><input id="person-name" placeholder="Új családtag" required aria-label="Új családtag"><button class="btn" type="submit">Hozzáad</button></form>' +
+    '<div class="label">Mit követünk mindenkinél?</div><div class="chips">' + f.activities.map((a, i) => tag(a, 'activities', 'del-activity', i)).join('') + '</div>' +
+    '<form class="inline" data-form="add-activity"><input id="activity-name" placeholder="Új tevékenység, pl. Fürdetés" required aria-label="Új tevékenység"><button class="btn" type="submit">Hozzáad</button></form>' +
+    '</div>';
+  const fam = famTasks();
+  for (const p of f.people) {
+    h += '<details class="fam-rules" data-person="' + esc(p.id) + '"' + (S.famOpen.has(p.id) ? ' open' : '') + '><summary>' + esc(p.name) + ' ütemezése</summary><div class="list">' +
+      fam.filter(c => c.person === p.name).map(c => ruleRow(c, false)).join('') + '</div></details>';
+  }
+  h += '</section>';
   h += '<section><h2>Adatok</h2><div class="card"><div class="hint">Mentésként vagy átköltözéshez az összes adat kimásolható, és egy korábbi mentés visszatölthető.</div>' +
     '<div class="inline"><button class="btn ghost sm" data-act="export">Adatok másolása (JSON)</button><button class="btn ghost sm" data-act="import-open">Importálás</button></div>' +
     (S.copyText != null && S.copyTitle === 'export' ? copyBox() : '') +
@@ -494,9 +600,10 @@ function render() {
   const act = document.activeElement && document.activeElement.id;
   const view = document.getElementById('view');
   view.innerHTML = S.tab === 'bolt' ? viewBolt() : S.tab === 'naplo' ? viewNaplo() : S.tab === 'szabaly' ? viewSzabaly() : viewMa();
-  for (const id in keep) { const el = document.getElementById(id); if (el && el.tagName === 'INPUT' && el.type !== 'date' && el.type !== 'time') el.value = keep[id]; }
+  for (const id in keep) { if (id === 'rename-input' && S.focusRename) continue; const el = document.getElementById(id); if (el && el.tagName === 'INPUT' && el.type !== 'date' && el.type !== 'time') el.value = keep[id]; }
   if (act) { const el = document.getElementById(act); if (el) el.focus(); }
   const ca = document.getElementById('copy-area'); if (ca && !act) ca.select();
+  if (S.focusRename) { const ri = document.getElementById('rename-input'); if (ri) { ri.focus(); ri.select(); } S.focusRename = false; }
 }
 
 // ---------- events ----------
@@ -513,7 +620,7 @@ document.addEventListener('click', e => {
   if (a === 'log') {
     const r = logChore(id);
     S.flash = id; setTimeout(() => { S.flash = null; render(); }, 700);
-    toast(choreName(id) + ' rögzítve, ' + hm(Date.now()), () => removeEntry(r.k, r.id));
+    toast(entryLabel({ chore: id }) + ' rögzítve, ' + hm(Date.now()), () => removeEntry(r.k, r.id));
   }
   if (a === 'del-entry') {
     const e0 = (S.logs[el.dataset.k]?.entries || []).find(x => x.id === id);
@@ -545,7 +652,16 @@ document.addEventListener('click', e => {
   if (a === 'import-run') { importData(document.getElementById('import-area').value); S.importOpen = false; }
   if (a === 'toggle-noshop') { const d = +el.dataset.d; const no = S.config.noShopDays || []; saveConfig({ noShopDays: no.includes(d) ? no.filter(x => x !== d) : [...no, d] }); }
   if (a === 'del-store') { const s = (S.config.stores || []).slice(); s.splice(+el.dataset.i, 1); saveConfig({ stores: s }); }
-  if (a === 'toggle-cday') { const c = S.chores.find(x => x.id === id); const d = +el.dataset.d; const days = c.rule?.days || []; saveChore({ ...c, rule: { ...c.rule, mode: 'days', days: days.includes(d) ? days.filter(x => x !== d) : [...days, d] } }); }
+  if (a === 'toggle-cday') { const c = findTask(id); if (!c) return; const d = +el.dataset.d; const days = c.rule?.days || []; saveChore({ ...c, rule: { ...c.rule, mode: 'days', days: days.includes(d) ? days.filter(x => x !== d) : [...days, d] } }); }
+  if (a === 'del-person' || a === 'del-activity') {
+    const key = a === 'del-person' ? 'people' : 'activities';
+    const prev = family();
+    const list = prev[key].slice(); const [gone] = list.splice(+el.dataset.i, 1);
+    saveConfig({ family: { ...prev, [key]: list } });
+    toast(gone.name + ' eltávolítva. A korábbi bejegyzések megmaradnak.', () => saveConfig({ family: prev }));
+  }
+  if (a === 'edit') { S.editing = { kind: el.dataset.kind, key: el.dataset.key }; S.focusRename = true; S.confirmDel = null; }
+  if (a === 'cancel-edit') S.editing = null;
   if (a === 'ask-del') S.confirmDel = id;
   if (a === 'cancel-del') S.confirmDel = null;
   if (a === 'del-chore') { const c = S.chores.find(x => x.id === id); deleteChore(id); S.confirmDel = null; if (c) toast(c.name + ' törölve.', () => saveChore(c)); }
@@ -553,9 +669,9 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('change', e => {
   const el = e.target.closest('[data-change]'); if (!el) return;
-  const c = S.chores.find(x => x.id === el.dataset.id); if (!c) return;
+  const c = findTask(el.dataset.id); if (!c) return;
   if (el.dataset.change === 'mode') saveChore({ ...c, rule: { ...(c.rule || {}), mode: el.value, every: c.rule?.every || 7, days: c.rule?.days || [] } });
-  if (el.dataset.change === 'every') { const n = Math.min(60, Math.max(1, parseInt(el.value, 10) || 1)); saveChore({ ...c, rule: { ...c.rule, mode: 'every', every: n } }); }
+  if (el.dataset.change === 'every') { const n = Math.min(365, Math.max(1, parseInt(el.value, 10) || 1)); saveChore({ ...c, rule: { ...c.rule, mode: 'every', every: n } }); }
   render();
 });
 document.addEventListener('submit', e => {
@@ -571,8 +687,36 @@ document.addEventListener('submit', e => {
     inp.value = '';
   }
   if (kind === 'add-chore') {
-    const inp = document.getElementById('chore-name'); const name = inp.value.trim(); if (!name) return;
-    saveChore({ id: rid(), name, order: S.chores.length, rule: { mode: 'auto' } }); inp.value = '';
+    const group = f.dataset.group || 'haz';
+    const inp = document.getElementById('chore-name-' + group); const name = inp.value.trim(); if (!name) return;
+    saveChore({ id: rid(), name, group, order: S.chores.length, rule: { mode: 'auto' } }); inp.value = '';
+  }
+  if (kind === 'add-person' || kind === 'add-activity') {
+    const key = kind === 'add-person' ? 'people' : 'activities';
+    const inp = document.getElementById(kind === 'add-person' ? 'person-name' : 'activity-name');
+    const name = inp.value.trim(); if (!name) return;
+    const f = family();
+    if (f[key].some(x => slug(x.name) === slug(name))) toast(name + ' már szerepel a listán.');
+    else saveConfig({ family: { ...f, [key]: [...f[key], { id: freshId(name, f[key]), name }] } });
+    inp.value = '';
+  }
+  if (kind === 'rename') {
+    const name = document.getElementById('rename-input').value.trim(); if (!name) return;
+    const k = f.dataset.kind, key = f.dataset.key;
+    if (k === 'chore') { const c = S.chores.find(x => x.id === key); if (c) saveChore({ ...c, name }); }
+    if (k === 'store') {
+      const stores = (S.config.stores || []).slice(); const old = stores[+key];
+      if (old !== name && stores.includes(name)) { toast(name + ' már szerepel a listán.'); return; }
+      stores[+key] = name; saveConfig({ stores });
+      S.items.filter(i => i.store === old).forEach(i => saveItem({ ...i, store: name }));
+      if (lsGet('lastStore') === old) lsSet('lastStore', name);
+    }
+    if (k === 'people' || k === 'activities') {
+      const fam = family();
+      if (fam[k].some(x => x.id !== key && slug(x.name) === slug(name))) { toast(name + ' már szerepel a listán.'); return; }
+      saveConfig({ family: { ...fam, [k]: fam[k].map(x => x.id === key ? { ...x, name } : x) } });
+    }
+    S.editing = null;
   }
   if (kind === 'add-store') {
     const inp = document.getElementById('store-name'); const name = inp.value.trim(); if (!name) return;
@@ -590,6 +734,10 @@ document.addEventListener('submit', e => {
   }
   render();
 });
+document.addEventListener('toggle', e => {
+  const d = e.target; if (!d.matches || !d.matches('details[data-person]')) return;
+  if (d.open) S.famOpen.add(d.dataset.person); else S.famOpen.delete(d.dataset.person);
+}, true);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
 
 render();
