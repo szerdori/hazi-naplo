@@ -1,0 +1,4 @@
+# helyi beállítások és adatmentések (személyes adat, nem kerül a nyilvános tárolóba)
+.claude/
+mentes/
+*.json.bak

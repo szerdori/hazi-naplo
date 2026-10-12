@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Házi Napló</title>
+<meta name="theme-color" content="#2E6B5E">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Házi Napló">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&display=swap">
+<style>
+/* Layout: mobile-first single column, sticky header, fixed bottom tab bar; tiles for one-tap logging */
+:root {
+  --bg: #F3F5F1; --surface: #FFFFFF; --ink: #1D2622; --muted: #5E6B65; --line: #DCE3DE;
+  --accent: #2E6B5E; --accent-ink: #FFFFFF; --accent-soft: #DDEBE5;
+  --due: #B4602A; --due-soft: #F6E3D2; --late: #AE3645; --late-soft: #F6DADD;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Figtree", "Segoe UI", system-ui, sans-serif;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111715; --surface: #19211E; --ink: #E5ECE8; --muted: #98A6A0; --line: #2B3632;
+  --accent: #74C3AC; --accent-ink: #0E1A16; --accent-soft: #1E3A32;
+  --due: #E9A26C; --due-soft: #3A2A1D; --late: #EB8592; --late-soft: #3E2228; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #111715; --surface: #19211E; --ink: #E5ECE8; --muted: #98A6A0; --line: #2B3632;
+  --accent: #74C3AC; --accent-ink: #0E1A16; --accent-soft: #1E3A32;
+  --due: #E9A26C; --due-soft: #3A2A1D; --late: #EB8592; --late-soft: #3E2228; color-scheme: dark; }
+
+html { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+html, body { background: var(--bg); color: var(--ink); }
+body { margin: 0; font-family: var(--font-body); font-size: 16px; line-height: 1.45; }
+[hidden] { display: none !important; }
+* { box-sizing: border-box; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.wrap { max-width: 640px; margin: 0 auto; padding-inline: 16px; padding-block: 0 110px; }
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); padding-block: 14px 10px; }
+.date { font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+h1 { font-family: var(--font-display); font-weight: 700; font-size: 28px; line-height: 1.1; margin: 2px 0 0; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-weight: 600; font-size: 18px; margin: 0; }
+.sub { color: var(--muted); font-size: 14px; margin-top: 4px; }
+section { display: grid; gap: 12px; margin-top: 22px; }
+.section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.hint { color: var(--muted); font-size: 14px; }
+
+.banner { border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 12px 14px; font-size: 14px; }
+.banner.warn { background: var(--due-soft); border-color: transparent; }
+
+/* chore tiles */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.tile { text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; display: grid; gap: 6px; min-height: 112px; align-content: start; transition: transform .12s ease, border-color .12s; }
+.tile:active { transform: scale(.97); }
+.tile:hover { border-color: var(--accent); }
+.tile .nm { font-weight: 600; font-size: 17px; line-height: 1.2; }
+.tile .meta { font-size: 13px; color: var(--muted); }
+.tile.flash { border-color: var(--accent); background: var(--accent-soft); }
+.chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); justify-self: start; }
+.chip.due { background: var(--due-soft); color: var(--due); }
+.chip.late { background: var(--late-soft); color: var(--late); }
+.chip.quiet { background: transparent; color: var(--muted); padding-left: 0; font-weight: 500; }
+
+/* lists */
+.list { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-top: 1px solid var(--line); min-height: 48px; }
+.row:first-child { border-top: 0; }
+.row .grow { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.row .time { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 14px; width: 44px; flex: none; }
+.row .small { font-size: 13px; color: var(--muted); }
+.x { border: 0; background: transparent; color: var(--muted); width: 36px; height: 36px; border-radius: 10px; flex: none; font-size: 18px; line-height: 1; }
+.x:hover { background: var(--bg); color: var(--late); }
+.check { width: 26px; height: 26px; border-radius: 8px; border: 2px solid var(--line); background: transparent; flex: none; }
+.check:hover { border-color: var(--accent); }
+.group-label { font-size: 12px; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); padding: 10px 14px 4px; background: var(--bg); border-top: 1px solid var(--line); }
+.group-label:first-child { border-top: 0; }
+.empty { padding: 16px 14px; color: var(--muted); font-size: 14px; }
+
+/* forms */
+form.inline, .inline { display: flex; gap: 8px; flex-wrap: wrap; }
+.inline > input[type=text], .inline > input:not([type]) { flex: 1 1 160px; min-width: 0; }
+input, select { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 44px; }
+input:focus, select:focus { border-color: var(--accent); outline: none; }
+.btn { border: 0; background: var(--accent); color: var(--accent-ink); border-radius: 10px; padding: 10px 16px; font-weight: 600; min-height: 44px; }
+.btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+.btn.danger { background: var(--late); color: var(--surface); }
+.btn.sm { min-height: 36px; padding: 6px 12px; font-size: 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.pick { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 7px 12px; font-size: 14px; }
+.pick:hover { border-color: var(--accent); }
+.pick .small { color: var(--muted); font-size: 12px; margin-left: 4px; }
+.pick.sugg { background: var(--due-soft); border-color: transparent; }
+.days { display: flex; gap: 6px; flex-wrap: wrap; }
+.day { width: 42px; height: 38px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); font-size: 14px; font-weight: 600; }
+.day.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.day.off { background: var(--late-soft); color: var(--late); border-color: transparent; text-decoration: line-through; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; display: grid; gap: 10px; }
+.rule-row { display: grid; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--line); }
+.rule-row:first-child { border-top: 0; }
+.rule-top { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.rule-top .nm { font-weight: 600; flex: 1 1 120px; min-width: 0; }
+textarea { width: 100%; min-height: 140px; border: 1px solid var(--line); border-radius: 10px; padding: 10px; background: var(--surface); font-size: 13px; }
+
+/* bottom nav */
+nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
+nav.tabs .in { max-width: 640px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
+nav.tabs button { border: 0; background: transparent; padding: 10px 4px 12px; font-size: 13px; font-weight: 600; color: var(--muted); display: grid; justify-items: center; gap: 3px; }
+nav.tabs button svg { width: 22px; height: 22px; }
+nav.tabs button[aria-current="page"] { color: var(--accent); }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom, 0px)); background: var(--ink); color: var(--bg); padding: 10px 10px 10px 16px; border-radius: 12px; display: flex; gap: 12px; align-items: center; z-index: 20; max-width: calc(100% - 32px); font-size: 15px; }
+.toast button { background: transparent; border: 0; color: var(--bg); font-weight: 700; text-decoration: underline; padding: 6px 8px; }
+@media (prefers-reduced-motion: reduce) { .tile { transition: none; } }
+.login { display: grid; gap: 14px; justify-items: start; margin-top: 28px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="top">
+    <div class="date" id="today-label"></div>
+    <h1 id="page-title">Ma</h1>
+    <div class="sub" id="page-sub"></div>
+  </header>
+  <main id="view"><div class="banner">Betöltés…</div></main>
+</div>
+
+<nav class="tabs" aria-label="Fülek"><div class="in">
+  <button data-act="tab" data-tab="ma"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></svg>Ma</button>
+  <button data-act="tab" data-tab="bolt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1.2 11.2a1 1 0 0 1-1 .8H7.2a1 1 0 0 1-1-.8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>Bevásárlás</button>
+  <button data-act="tab" data-tab="naplo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Napló</button>
+  <button data-act="tab" data-tab="szabaly"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Szabályok</button>
+</div></nav>
+
+<div id="toast-host"></div>
+
+<script>
+(() => {
+'use strict';
+// ---------- dates ----------
+const DAY = 864e5;
+const WD = ['vasárnap','hétfő','kedd','szerda','csütörtök','péntek','szombat'];
+const WDS = ['V','H','K','Sze','Cs','P','Szo'];
+const WEEK = [1,2,3,4,5,6,0];
+const MON = ['január','február','március','április','május','június','július','augusztus','szeptember','október','november','december'];
+const sod = t => { const d = new Date(t); d.setHours(0,0,0,0); return d.getTime(); };
+const addDays = (t, n) => { const d = new Date(t); d.setDate(d.getDate() + n); d.setHours(0,0,0,0); return d.getTime(); };
+const diffDays = (a, b) => Math.round((sod(a) - sod(b)) / DAY);
+const pad = n => String(n).padStart(2, '0');
+const dayKey = t => { const d = new Date(t); return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()); };
+const hm = t => { const d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+const longDate = t => { const d = new Date(t); return WD[d.getDay()] + ', ' + MON[d.getMonth()] + ' ' + d.getDate() + '.'; };
+const relDay = t => { const n = diffDays(Date.now(), t); return n === 0 ? 'ma ' + hm(t) : n === 1 ? 'tegnap' : n + ' napja'; };
+const dayName = t => { const n = diffDays(t, Date.now()); return n === 0 ? 'ma' : n === 1 ? 'holnap' : WD[new Date(t).getDay()]; };
+const fmtNum = x => (Math.round(x * 2) / 2).toString().replace('.', ',');
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const median = a => { const s = a.slice().sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m-1] + s[m]) / 2; };
+const medianInterval = times => { const t = times.slice(-9); const iv = []; for (let i = 1; i < t.length; i++) iv.push((t[i] - t[i-1]) / DAY); return median(iv); };
+const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
+
+// ---------- state ----------
+const S = {
+  tab: lsGet('tab') || 'ma',
+  chores: [], logs: {}, items: [], config: { noShopDays: [], stores: [] },
+  loaded: { chores: false, logs: false, items: false, config: false },
+  db: null, dbMissing: false, flash: null, confirmDel: null, copyText: null, copyTitle: '',
+};
+
+// ---------- storage ----------
+// S.db is a small adapter (see the module script at the end) with
+// collection(p).where(...).onSnapshot, doc(p).onSnapshot/set/delete.
+// Firestore orders writes locally and queues them while offline, so writes are fired directly.
+function persist(path, bodyFn) {
+  if (!S.db) return Promise.resolve();
+  const body = bodyFn();
+  const p = body === null ? S.db.doc(path).delete() : S.db.doc(path).set(JSON.parse(JSON.stringify(body)));
+  return p.catch(e => toast(e && e.code === 'permission-denied' ? 'Ehhez a fiókhoz nincs írási jog.' : 'Nem sikerült menteni. Próbáld újra.'));
+}
+// auth.status: 'loading' | 'unconfigured' | 'signedOut' | 'signedIn' | 'denied'
+S.auth = { status: 'loading', email: '' };
+let unsubs = [];
+window.HaziApp = {
+  setAuth(state) {
+    S.auth = state;
+    unsubs.forEach(u => u()); unsubs = [];
+    S.db = null; Object.keys(S.loaded).forEach(k => S.loaded[k] = false);
+    if (state.status === 'signedIn') connect(state.db); else render();
+  },
+};
+function connect(db) {
+  S.db = db;
+  const fail = e => {
+    if (e && e.code === 'permission-denied') { S.auth = { ...S.auth, status: 'denied' }; unsubs.forEach(u => u()); unsubs = []; }
+    else S.dbMissing = true;
+    render();
+  };
+  const on = u => unsubs.push(u);
+  on(db.collection('chores').onSnapshot(s => { S.chores = s.docs.map(d => ({ id: d.id, ...d.data() })); S.loaded.chores = true; render(); }, fail));
+  const since = dayKey(addDays(Date.now(), -120));
+  on(db.collection('logs').where('date', '>=', since).onSnapshot(s => { const o = {}; s.docs.forEach(d => o[d.id] = d.data()); S.logs = o; S.loaded.logs = true; render(); }, fail));
+  on(db.collection('items').onSnapshot(s => { S.items = s.docs.map(d => ({ id: d.id, ...d.data() })); S.loaded.items = true; render(); }, fail));
+  on(db.doc('config/main').onSnapshot(s => { S.config = Object.assign({ noShopDays: [], stores: [] }, s.exists ? s.data() : {}); S.loaded.config = true; render(); }, fail));
+}
+function viewAuth() {
+  const a = S.auth;
+  if (a.status === 'loading') return '<div class="banner">Betöltés…</div>';
+  if (a.status === 'unconfigured') return '<div class="banner warn">Az app még nincs összekötve a Firebase-szel. Töltsd ki a <b>firebase-config.js</b> fájlt a README leírása szerint.</div>';
+  if (a.status === 'denied') return '<div class="login"><div class="banner warn">A(z) <b>' + esc(a.email) + '</b> fiókkal nincs hozzáférésed ehhez a háztartáshoz. Jelentkezz be a megfelelő Google-fiókkal.</div><button class="btn ghost" data-act="sign-out">Kijelentkezés</button></div>';
+  return '<div class="login"><p>Jelentkezz be azzal a Google-fiókkal, amelyiknek hozzáférése van a háztartás adataihoz.</p><button class="btn" data-act="sign-in">Belépés Google-fiókkal</button>' + (a.error ? '<div class="hint">' + esc(a.error) + '</div>' : '') + '</div>';
+}
+function importData(text) {
+  let d;
+  try { d = JSON.parse(text); } catch { toast('Ez nem érvényes JSON.'); return; }
+  let n = 0;
+  (d.chores || []).forEach(c => { const { id, ...b } = c; if (id) { persist('chores/' + id, () => b); n++; } });
+  Object.keys(d.logs || {}).forEach(k => { persist('logs/' + k, () => d.logs[k]); n++; });
+  (d.items || []).forEach(i => { const { id, ...b } = i; if (id) { persist('items/' + id, () => b); n++; } });
+  if (d.config) { persist('config/main', () => d.config); n++; }
+  toast(n + ' tétel importálva.');
+}
+
+// ---------- derived ----------
+function allEntries() {
+  const out = [];
+  for (const k in S.logs) for (const e of (S.logs[k].entries || [])) out.push(e);
+  return out.sort((a, b) => a.t - b.t);
+}
+function choreName(id) { const c = S.chores.find(c => c.id === id); return c ? c.name : null; }
+function sortedChores() { return S.chores.slice().sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name, 'hu')); }
+function daysLabel(days) { return WEEK.filter(d => days.includes(d)).map(d => WDS[d]).join(', '); }
+
+function choreInfo(c, entries) {
+  const times = entries.filter(e => e.chore === c.id).map(e => e.t);
+  const last = times[times.length - 1];
+  const today = sod(Date.now());
+  const r = c.rule || { mode: 'auto' };
+  let due = null, freq = '', learned = false;
+  if (r.mode === 'every' && r.every > 0) {
+    freq = r.every === 1 ? 'naponta (szabály)' : r.every + ' naponta (szabály)';
+    due = last ? addDays(last, r.every) : today;
+  } else if (r.mode === 'days' && r.days && r.days.length) {
+    freq = daysLabel(r.days) + ' (szabály)';
+    let s = last ? addDays(last, 1) : today;
+    for (let i = 0; i < 8 && !r.days.includes(new Date(s).getDay()); i++) s = addDays(s, 1);
+    due = s;
+  } else if (times.length >= 3) {
+    learned = true;
+    const iv = medianInterval(times);
+    if (iv < 0.75) {
+      const perDay = Math.max(1, Math.round(1 / iv));
+      freq = 'naponta kb. ' + perDay + '×';
+      due = times.filter(t => t >= today).length >= perDay ? addDays(today, 1) : today;
+    } else {
+      freq = 'kb. ' + fmtNum(iv) + ' naponta';
+      due = addDays(last, Math.max(1, Math.round(iv)));
+    }
+  } else {
+    freq = times.length ? 'figyelem még (' + times.length + '/3)' : 'még nincs adat';
+  }
+  return { last, due, freq, count: times.length, learned };
+}
+function dueChip(due) {
+  if (due == null) return '';
+  const d = diffDays(due, Date.now());
+  if (d < 0) return '<span class="chip late">' + (-d === 1 ? 'tegnap óta esedékes' : -d + ' napja esedékes') + '</span>';
+  if (d === 0) return '<span class="chip due">ma esedékes</span>';
+  if (d === 1) return '<span class="chip quiet">holnap</span>';
+  return '<span class="chip quiet">' + d + ' nap múlva</span>';
+}
+function nextShopDay(from = Date.now()) {
+  const no = S.config.noShopDays || [];
+  let s = sod(from);
+  for (let i = 0; i < 7 && no.includes(new Date(s).getDay()); i++) s = addDays(s, 1);
+  return s;
+}
+function itemInfo(it) {
+  const b = (it.bought || []).map(x => x.t).sort((x, y) => x - y);
+  if (b.length < 2) return { count: b.length, last: b[b.length - 1] };
+  const iv = medianInterval(b);
+  return { count: b.length, last: b[b.length - 1], iv, next: addDays(b[b.length - 1], Math.max(1, Math.round(iv))) };
+}
+
+// ---------- actions ----------
+function logChore(choreId, ts = Date.now()) {
+  const k = dayKey(ts);
+  const cur = S.logs[k] || { date: k, entries: [] };
+  const entry = { id: rid(), chore: choreId, name: choreName(choreId) || '', t: ts };
+  S.logs = { ...S.logs, [k]: { date: k, entries: [...cur.entries, entry] } };
+  persist('logs/' + k, () => S.logs[k]);
+  return { k, id: entry.id };
+}
+function removeEntry(k, id) {
+  const cur = S.logs[k]; if (!cur) return;
+  const entries = cur.entries.filter(e => e.id !== id);
+  const logs = { ...S.logs };
+  if (entries.length) logs[k] = { date: k, entries }; else delete logs[k];
+  S.logs = logs;
+  persist('logs/' + k, () => S.logs[k] || null);
+}
+function saveChore(c) {
+  const { id, ...body } = c;
+  S.chores = S.chores.map(x => x.id === id ? c : x);
+  if (!S.chores.some(x => x.id === id)) S.chores = [...S.chores, c];
+  persist('chores/' + id, () => { const cur = S.chores.find(x => x.id === id); if (!cur) return null; const { id: _, ...b } = cur; return b; });
+}
+function deleteChore(id) { S.chores = S.chores.filter(x => x.id !== id); persist('chores/' + id, () => null); }
+function saveItem(it) {
+  if (!S.items.some(x => x.id === it.id)) S.items = [...S.items, it];
+  else S.items = S.items.map(x => x.id === it.id ? it : x);
+  persist('items/' + it.id, () => { const cur = S.items.find(x => x.id === it.id); if (!cur) return null; const { id: _, ...b } = cur; return b; });
+}
+function saveConfig(patch) {
+  S.config = { ...S.config, ...patch };
+  persist('config/main', () => S.config);
+}
+
+// ---------- toast ----------
+let toastTimer;
+function toast(msg, undo) {
+  const host = document.getElementById('toast-host');
+  host.innerHTML = '<div class="toast" role="status"><span>' + esc(msg) + '</span>' + (undo ? '<button data-act="undo">Visszavonás</button>' : '') + '</div>';
+  host._undo = undo || null;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { host.innerHTML = ''; host._undo = null; }, undo ? 6000 : 3500);
+}
+
+// ---------- views ----------
+function dbBanner() {
+  return S.dbMissing ? '<div class="banner warn">Nem sikerült kapcsolódni az adatbázishoz. Frissítsd az oldalt; ha így marad, jelentkezz ki és be.</div>' : '';
+}
+function viewMa() {
+  const entries = allEntries();
+  const today = sod(Date.now());
+  const chores = sortedChores().map(c => ({ c, i: choreInfo(c, entries) }))
+    .sort((a, b) => (a.i.due ?? Infinity) - (b.i.due ?? Infinity));
+  const dueCount = chores.filter(x => x.i.due != null && x.i.due <= today).length;
+  const todays = entries.filter(e => e.t >= today).reverse();
+  setHead('Ma', dueCount ? dueCount + ' teendő esedékes ma vagy már késésben van.' : 'Koppints arra, amit elvégeztél.');
+  let h = dbBanner();
+  if (!todays.length && new Date().getHours() >= 18) h += '<div class="banner warn">Ma még nincs bejegyzés. Mit sikerült megcsinálni?</div>';
+  h += '<section><div class="section-head"><h2>Mit csináltál?</h2><span class="hint">Egy koppintás = kész</span></div>';
+  if (!S.chores.length) h += '<div class="list"><div class="empty">Még nincs házimunka a listán. A Szabályok fülön adhatsz hozzá.</div></div>';
+  else h += '<div class="tiles">' + chores.map(({ c, i }) =>
+    '<button class="tile' + (S.flash === c.id ? ' flash' : '') + '" data-act="log" data-id="' + esc(c.id) + '">' +
+      '<span class="nm">' + esc(c.name) + '</span>' +
+      dueChip(i.due) +
+      '<span class="meta">' + (i.last ? 'Utoljára: ' + relDay(i.last) : 'Még nem rögzítetted') + '<br>' + esc(i.freq) + '</span>' +
+    '</button>').join('') + '</div>';
+  h += '</section>';
+  h += '<section><div class="section-head"><h2>Mai bejegyzések</h2><span class="hint">' + todays.length + ' db</span></div><div class="list">';
+  h += todays.length ? todays.map(e => entryRow(e)).join('') : '<div class="empty">Még semmi. Elfelejtettél valamit tegnapról? A Napló fülön pótolhatod.</div>';
+  h += '</div></section>';
+  return h;
+}
+function entryRow(e) {
+  return '<div class="row"><span class="time">' + hm(e.t) + '</span><span class="grow">' + esc(choreName(e.chore) || e.name || 'Törölt teendő') + '</span>' +
+    '<button class="x" aria-label="Bejegyzés törlése" data-act="del-entry" data-k="' + dayKey(e.t) + '" data-id="' + esc(e.id) + '">×</button></div>';
+}
+function viewNaplo() {
+  setHead('Napló', 'Az elmúlt két hét. Itt pótolhatod, ha valamit elfelejtettél beírni.');
+  const entries = allEntries();
+  const now = new Date();
+  const opts = sortedChores().map(c => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('');
+  let h = dbBanner();
+  h += '<section><h2>Pótlás</h2><form class="inline" data-form="backfill">' +
+    '<select id="bf-chore" required aria-label="Házimunka">' + opts + '</select>' +
+    '<input id="bf-date" type="date" required value="' + dayKey(addDays(now, -1)) + '" max="' + dayKey(now) + '" aria-label="Nap">' +
+    '<input id="bf-time" type="time" required value="' + pad(now.getHours()) + ':00" aria-label="Időpont">' +
+    '<button class="btn" type="submit"' + (S.chores.length ? '' : ' disabled') + '>Hozzáadás</button></form></section>';
+  h += '<section><h2>Előzmények</h2><div class="list">';
+  let any = false;
+  for (let i = 0; i < 14; i++) {
+    const d = addDays(Date.now(), -i);
+    const es = entries.filter(e => sod(e.t) === d).reverse();
+    if (!es.length) continue;
+    any = true;
+    h += '<div class="group-label">' + (i === 0 ? 'Ma' : i === 1 ? 'Tegnap' : longDate(d)) + ' · ' + es.length + ' db</div>' + es.map(entryRow).join('');
+  }
+  if (!any) h += '<div class="empty">Még nincs bejegyzés. A Ma fülön egy koppintással rögzíthetsz.</div>';
+  h += '</div></section>';
+  return h;
+}
+function viewBolt() {
+  const shop = nextShopDay();
+  const no = S.config.noShopDays || [];
+  const todayBlocked = no.includes(new Date().getDay());
+  setHead('Bevásárlás', todayBlocked
+    ? 'Ma (' + WD[new Date().getDay()] + ') nem tudtok vásárolni. Következő bevásárlónap: ' + dayName(shop) + '.'
+    : 'Ma lehet vásárolni.' + (no.length ? ' Kimarad: ' + no.map(d => WD[d]).join(', ') + '.' : ''));
+  const stores = S.config.stores || [];
+  const lastStore = lsGet('lastStore') || '';
+  const onList = S.items.filter(i => i.onList);
+  const off = S.items.filter(i => !i.onList);
+  const sugg = off.map(i => ({ i, f: itemInfo(i) })).filter(x => x.f.next && x.f.next <= addDays(shop, 1)).sort((a, b) => a.f.next - b.f.next);
+  const suggIds = new Set(sugg.map(x => x.i.id));
+  const recent = off.filter(i => !suggIds.has(i.id) && (i.bought || []).length)
+    .sort((a, b) => (b.bought || []).length - (a.bought || []).length).slice(0, 16);
+
+  let h = dbBanner();
+  h += '<section><form class="inline" data-form="add-item">' +
+    '<input id="item-name" list="known-items" placeholder="Mit kell venni?" autocomplete="off" required aria-label="Termék">' +
+    '<datalist id="known-items">' + S.items.map(i => '<option value="' + esc(i.name) + '">').join('') + '</datalist>' +
+    '<select id="item-store" aria-label="Bolt"><option value="">Bármelyik bolt</option>' + stores.map(s => '<option' + (s === lastStore ? ' selected' : '') + '>' + esc(s) + '</option>').join('') + '</select>' +
+    '<button class="btn" type="submit">Hozzáad</button></form></section>';
+
+  h += '<section><div class="section-head"><h2>A lista</h2>' + (onList.length ? '<button class="btn ghost sm" data-act="copy-list">Másolás a páromnak</button>' : '') + '</div>';
+  if (S.copyText != null && S.copyTitle === 'list') h += copyBox();
+  h += '<div class="list">';
+  if (!onList.length) h += '<div class="empty">Üres a lista. Írd be fent, vagy válassz a javaslatok közül.</div>';
+  else {
+    const groups = {};
+    onList.forEach(i => (groups[i.store || ''] ||= []).push(i));
+    Object.keys(groups).sort((a, b) => (a === '') - (b === '') || a.localeCompare(b, 'hu')).forEach(g => {
+      h += '<div class="group-label">' + esc(g || 'Bármelyik bolt') + '</div>';
+      h += groups[g].sort((a, b) => (a.addedAt || 0) - (b.addedAt || 0)).map(i =>
+        '<div class="row"><button class="check" aria-label="Megvettük: ' + esc(i.name) + '" data-act="bought" data-id="' + esc(i.id) + '"></button>' +
+        '<span class="grow">' + esc(i.name) + '</span>' +
+        '<button class="x" aria-label="Levétel a listáról" data-act="unlist" data-id="' + esc(i.id) + '">×</button></div>').join('');
+    });
+  }
+  h += '</div><div class="hint">A pipa azt jelenti: megvettük. Ebből tanulja meg az app, mit milyen gyakran vesztek. Az × csak leveszi a listáról.</div></section>';
+
+  if (sugg.length) h += '<section><div class="section-head"><h2>Valószínűleg fogy</h2><span class="hint">' + dayName(shop) + 'i bevásárlásra</span></div><div class="chips">' +
+    sugg.map(({ i, f }) => '<button class="pick sugg" data-act="relist" data-id="' + esc(i.id) + '">+ ' + esc(i.name) + '<span class="small">kb. ' + fmtNum(f.iv) + ' naponta</span></button>').join('') + '</div></section>';
+  if (recent.length) h += '<section><h2>Korábban vettétek</h2><div class="chips">' +
+    recent.map(i => '<button class="pick" data-act="relist" data-id="' + esc(i.id) + '">+ ' + esc(i.name) + '</button>').join('') + '</div></section>';
+  return h;
+}
+function copyBox() {
+  return '<div class="card"><div class="hint">Nem sikerült automatikusan a vágólapra tenni. Jelöld ki és másold ki innen:</div><textarea id="copy-area" readonly>' + esc(S.copyText) + '</textarea><button class="btn ghost sm" data-act="copy-close">Bezárás</button></div>';
+}
+function viewSzabaly() {
+  setHead('Szabályok', 'Amit előre tudsz, azt itt adhatod meg. A szabály felülírja a megfigyelt mintát.');
+  const no = S.config.noShopDays || [];
+  const stores = S.config.stores || [];
+  let h = dbBanner();
+  h += '<section><h2>Bevásárlás</h2><div class="card"><div>Ezeken a napokon <b>nem</b> tudtok vásárolni:</div><div class="days">' +
+    WEEK.map(d => '<button class="day' + (no.includes(d) ? ' off' : '') + '" aria-pressed="' + no.includes(d) + '" data-act="toggle-noshop" data-d="' + d + '">' + WDS[d] + '</button>').join('') +
+    '</div><div class="hint">Ezekre a napokra az app nem tervez bevásárlást.</div></div></section>';
+  h += '<section><h2>Boltok</h2><div class="list">' +
+    (stores.length ? stores.map((s, i) => '<div class="row"><span class="grow">' + esc(s) + '</span><button class="x" aria-label="Bolt törlése" data-act="del-store" data-i="' + i + '">×</button></div>').join('') : '<div class="empty">Még nincs bolt megadva.</div>') +
+    '</div><form class="inline" data-form="add-store"><input id="store-name" placeholder="Pl. Lidl, DM, piac" required aria-label="Bolt neve"><button class="btn" type="submit">Hozzáad</button></form></section>';
+  h += '<section><h2>Házimunkák</h2><div class="list">';
+  if (!S.chores.length) h += '<div class="empty">Még nincs házimunka. Add hozzá lent.</div>';
+  h += sortedChores().map(c => {
+    const r = c.rule || { mode: 'auto' };
+    let extra = '';
+    if (r.mode === 'days') extra = '<div class="days">' + WEEK.map(d => { const on = (r.days || []).includes(d); return '<button class="day' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-act="toggle-cday" data-id="' + esc(c.id) + '" data-d="' + d + '">' + WDS[d] + '</button>'; }).join('') + '</div>';
+    if (r.mode === 'every') extra = '<label class="inline" style="align-items:center">Minden <input type="number" min="1" max="60" style="width:80px" id="ev-' + esc(c.id) + '" data-change="every" data-id="' + esc(c.id) + '" value="' + (r.every || 7) + '"> napon</label>';
+    const confirm = S.confirmDel === c.id
+      ? '<div class="inline"><span class="hint" style="align-self:center">Törlöd? A korábbi bejegyzések megmaradnak.</span><button class="btn danger sm" data-act="del-chore" data-id="' + esc(c.id) + '">Törlés</button><button class="btn ghost sm" data-act="cancel-del">Mégse</button></div>' : '';
+    return '<div class="rule-row"><div class="rule-top"><span class="nm">' + esc(c.name) + '</span>' +
+      '<select id="mode-' + esc(c.id) + '" data-change="mode" data-id="' + esc(c.id) + '" aria-label="Ütemezés: ' + esc(c.name) + '">' +
+        '<option value="auto"' + (r.mode === 'auto' || !r.mode ? ' selected' : '') + '>Tanulja meg magától</option>' +
+        '<option value="days"' + (r.mode === 'days' ? ' selected' : '') + '>Fix napokon</option>' +
+        '<option value="every"' + (r.mode === 'every' ? ' selected' : '') + '>X naponta</option></select>' +
+      '<button class="x" aria-label="Házimunka törlése" data-act="ask-del" data-id="' + esc(c.id) + '">×</button></div>' + extra + confirm + '</div>';
+  }).join('');
+  h += '</div><form class="inline" data-form="add-chore"><input id="chore-name" placeholder="Új házimunka, pl. Porszívózás" required aria-label="Házimunka neve"><button class="btn" type="submit">Hozzáad</button></form></section>';
+  h += '<section><h2>Adatok</h2><div class="card"><div class="hint">Mentésként vagy átköltözéshez az összes adat kimásolható, és egy korábbi mentés visszatölthető.</div>' +
+    '<div class="inline"><button class="btn ghost sm" data-act="export">Adatok másolása (JSON)</button><button class="btn ghost sm" data-act="import-open">Importálás</button></div>' +
+    (S.copyText != null && S.copyTitle === 'export' ? copyBox() : '') +
+    (S.importOpen ? '<textarea id="import-area" placeholder="Illeszd be ide a JSON mentést"></textarea><div class="inline"><button class="btn sm" data-act="import-run">Betöltés</button><button class="btn ghost sm" data-act="import-close">Mégse</button></div><div class="hint">A betöltés felülírja az azonos nevű tételeket.</div>' : '') +
+    '</div></section>';
+  h += '<section><h2>Fiók</h2><div class="card"><div>Bejelentkezve: <b>' + esc(S.auth.email) + '</b></div><button class="btn ghost sm" data-act="sign-out" style="justify-self:start">Kijelentkezés</button></div></section>';
+  return h;
+}
+function setHead(title, sub) {
+  document.getElementById('page-title').textContent = title;
+  document.getElementById('page-sub').textContent = sub;
+}
+
+function render() {
+  document.getElementById('today-label').textContent = longDate(Date.now());
+  document.querySelectorAll('nav.tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === S.tab ? 'page' : 'false'));
+  if (S.auth.status !== 'signedIn') {
+    setHead('Házi Napló', '');
+    document.getElementById('view').innerHTML = viewAuth();
+    document.querySelector('nav.tabs').hidden = true;
+    return;
+  }
+  document.querySelector('nav.tabs').hidden = false;
+  if (!Object.values(S.loaded).every(Boolean)) { document.getElementById('view').innerHTML = '<div class="banner">Betöltés…</div>'; return; }
+  // keep typed text and focus across live re-renders
+  const keep = {};
+  document.querySelectorAll('#view input[id], #view select[id]').forEach(el => { if (el.type !== 'number' || el === document.activeElement) keep[el.id] = el.value; });
+  const act = document.activeElement && document.activeElement.id;
+  const view = document.getElementById('view');
+  view.innerHTML = S.tab === 'bolt' ? viewBolt() : S.tab === 'naplo' ? viewNaplo() : S.tab === 'szabaly' ? viewSzabaly() : viewMa();
+  for (const id in keep) { const el = document.getElementById(id); if (el && el.tagName === 'INPUT' && el.type !== 'date' && el.type !== 'time') el.value = keep[id]; }
+  if (act) { const el = document.getElementById(act); if (el) el.focus(); }
+  const ca = document.getElementById('copy-area'); if (ca && !act) ca.select();
+}
+
+// ---------- events ----------
+async function copy(text, kind) {
+  try { await navigator.clipboard.writeText(text); S.copyText = null; toast('Vágólapra másolva.'); }
+  catch { S.copyText = text; S.copyTitle = kind; }
+  render();
+}
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const a = el.dataset.act, id = el.dataset.id;
+  if (a === 'tab') { S.tab = el.dataset.tab; lsSet('tab', S.tab); S.copyText = null; S.confirmDel = null; render(); window.scrollTo(0, 0); return; }
+  if (a === 'undo') { const host = document.getElementById('toast-host'); const u = host._undo; host.innerHTML = ''; host._undo = null; if (u) u(); render(); return; }
+  if (a === 'log') {
+    const r = logChore(id);
+    S.flash = id; setTimeout(() => { S.flash = null; render(); }, 700);
+    toast(choreName(id) + ' rögzítve, ' + hm(Date.now()), () => removeEntry(r.k, r.id));
+  }
+  if (a === 'del-entry') {
+    const e0 = (S.logs[el.dataset.k]?.entries || []).find(x => x.id === id);
+    removeEntry(el.dataset.k, id);
+    if (e0) toast('Bejegyzés törölve.', () => logChore(e0.chore, e0.t));
+  }
+  if (a === 'bought') {
+    const it = S.items.find(x => x.id === id); if (!it) return;
+    const prev = it;
+    saveItem({ ...it, onList: false, bought: [...(it.bought || []), { t: Date.now(), store: it.store || '' }].slice(-60) });
+    toast(it.name + ' megvéve.', () => saveItem(prev));
+  }
+  if (a === 'unlist') { const it = S.items.find(x => x.id === id); if (it) { saveItem({ ...it, onList: false }); toast(it.name + ' levéve a listáról.', () => saveItem(it)); } }
+  if (a === 'relist') { const it = S.items.find(x => x.id === id); if (it) saveItem({ ...it, onList: true, addedAt: Date.now() }); }
+  if (a === 'copy-list') {
+    const groups = {};
+    S.items.filter(i => i.onList).sort((a, b) => (a.addedAt || 0) - (b.addedAt || 0)).forEach(i => (groups[i.store || ''] ||= []).push(i.name));
+    const text = 'Bevásárlólista (' + MON[new Date().getMonth()] + ' ' + new Date().getDate() + '.)\n' +
+      Object.keys(groups).sort((a, b) => (a === '') - (b === '') || a.localeCompare(b, 'hu'))
+        .map(g => '\n' + (g || 'Bármelyik bolt') + ':\n' + groups[g].map(n => '- ' + n).join('\n')).join('\n');
+    copy(text, 'list'); return;
+  }
+  if (a === 'export') { copy(JSON.stringify({ exportedAt: new Date().toISOString(), chores: S.chores, logs: S.logs, items: S.items, config: S.config }, null, 2), 'export'); return; }
+  if (a === 'copy-close') S.copyText = null;
+  if (a === 'sign-in') { window.HaziAuth?.signIn(); return; }
+  if (a === 'sign-out') { window.HaziAuth?.signOut(); return; }
+  if (a === 'import-open') S.importOpen = true;
+  if (a === 'import-close') S.importOpen = false;
+  if (a === 'import-run') { importData(document.getElementById('import-area').value); S.importOpen = false; }
+  if (a === 'toggle-noshop') { const d = +el.dataset.d; const no = S.config.noShopDays || []; saveConfig({ noShopDays: no.includes(d) ? no.filter(x => x !== d) : [...no, d] }); }
+  if (a === 'del-store') { const s = (S.config.stores || []).slice(); s.splice(+el.dataset.i, 1); saveConfig({ stores: s }); }
+  if (a === 'toggle-cday') { const c = S.chores.find(x => x.id === id); const d = +el.dataset.d; const days = c.rule?.days || []; saveChore({ ...c, rule: { ...c.rule, mode: 'days', days: days.includes(d) ? days.filter(x => x !== d) : [...days, d] } }); }
+  if (a === 'ask-del') S.confirmDel = id;
+  if (a === 'cancel-del') S.confirmDel = null;
+  if (a === 'del-chore') { const c = S.chores.find(x => x.id === id); deleteChore(id); S.confirmDel = null; if (c) toast(c.name + ' törölve.', () => saveChore(c)); }
+  render();
+});
+document.addEventListener('change', e => {
+  const el = e.target.closest('[data-change]'); if (!el) return;
+  const c = S.chores.find(x => x.id === el.dataset.id); if (!c) return;
+  if (el.dataset.change === 'mode') saveChore({ ...c, rule: { ...(c.rule || {}), mode: el.value, every: c.rule?.every || 7, days: c.rule?.days || [] } });
+  if (el.dataset.change === 'every') { const n = Math.min(60, Math.max(1, parseInt(el.value, 10) || 1)); saveChore({ ...c, rule: { ...c.rule, mode: 'every', every: n } }); }
+  render();
+});
+document.addEventListener('submit', e => {
+  const f = e.target.closest('form[data-form]'); if (!f) return;
+  e.preventDefault();
+  const kind = f.dataset.form;
+  if (kind === 'add-item') {
+    const inp = document.getElementById('item-name'); const name = inp.value.trim(); if (!name) return;
+    const store = document.getElementById('item-store').value; lsSet('lastStore', store);
+    const ex = S.items.find(i => i.name.toLowerCase() === name.toLowerCase());
+    if (ex) saveItem({ ...ex, onList: true, addedAt: Date.now(), store: store || ex.store || '' });
+    else saveItem({ id: rid(), name, store, onList: true, addedAt: Date.now(), bought: [] });
+    inp.value = '';
+  }
+  if (kind === 'add-chore') {
+    const inp = document.getElementById('chore-name'); const name = inp.value.trim(); if (!name) return;
+    saveChore({ id: rid(), name, order: S.chores.length, rule: { mode: 'auto' } }); inp.value = '';
+  }
+  if (kind === 'add-store') {
+    const inp = document.getElementById('store-name'); const name = inp.value.trim(); if (!name) return;
+    if (!(S.config.stores || []).includes(name)) saveConfig({ stores: [...(S.config.stores || []), name] }); inp.value = '';
+  }
+  if (kind === 'backfill') {
+    const chore = document.getElementById('bf-chore').value;
+    const [y, m, d] = document.getElementById('bf-date').value.split('-').map(Number);
+    const [hh, mm] = document.getElementById('bf-time').value.split(':').map(Number);
+    const ts = new Date(y, m - 1, d, hh, mm).getTime();
+    if (!chore || isNaN(ts)) return;
+    if (ts > Date.now()) { toast('Jövőbeli időpontot nem lehet rögzíteni.'); return; }
+    const r = logChore(chore, ts);
+    toast(choreName(chore) + ' rögzítve: ' + longDate(ts) + ' ' + hm(ts), () => removeEntry(r.k, r.id));
+  }
+  render();
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden) render(); });
+
+render();
+})();
+</script>
+
+<script src="firebase-config.js"></script>
+<script type="module">
+// Firebase: Google sign-in + Firestore, wrapped in the small db adapter the app expects.
+const V = '10.12.2';
+const cfg = window.FIREBASE_CONFIG;
+if (!cfg || !cfg.apiKey) {
+  window.HaziApp.setAuth({ status: 'unconfigured' });
+} else {
+  const { initializeApp } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
+  const A = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
+  const F = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
+  const app = initializeApp(cfg);
+  const auth = A.getAuth(app);
+  const fs = F.initializeFirestore(app, { localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }) });
+
+  const docSnap = d => ({ id: d.id, exists: d.exists(), data: () => d.data() });
+  const q = ref => ({
+    where: (f, op, v) => q(F.query(ref, F.where(f, op, v))),
+    onSnapshot: (next, err) => F.onSnapshot(ref, s => next({ docs: s.docs.map(docSnap), size: s.size, empty: s.empty }), err),
+  });
+  const db = {
+    collection: p => q(F.collection(fs, p)),
+    doc: p => {
+      const r = F.doc(fs, p);
+      return { set: d => F.setDoc(r, d), delete: () => F.deleteDoc(r), onSnapshot: (n, e) => F.onSnapshot(r, s => n(docSnap(s)), e) };
+    },
+  };
+
+  const provider = new A.GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  window.HaziAuth = {
+    async signIn() {
+      try { await A.signInWithPopup(auth, provider); }
+      catch (e) {
+        if (e.code === 'auth/popup-blocked') return A.signInWithRedirect(auth, provider);
+        if (e.code !== 'auth/popup-closed-by-user' && e.code !== 'auth/cancelled-popup-request')
+          window.HaziApp.setAuth({ status: 'signedOut', error: 'A belépés nem sikerült (' + e.code + ').' });
+      }
+    },
+    signOut: () => A.signOut(auth),
+  };
+  A.onAuthStateChanged(auth, u => {
+    window.HaziApp.setAuth(u ? { status: 'signedIn', email: u.email, db } : { status: 'signedOut' });
+  });
+}
+</script>
+</body>
+</html>

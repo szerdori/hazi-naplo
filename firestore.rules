@@ -1,0 +1,16 @@
+rules_version = '2';
+// Csak a felsorolt Google-fiókok olvashatják és írhatják a háztartás adatait.
+// A két e-mail címet a Firebase konzolban írd be (Firestore Database → Rules), ne ebbe a fájlba,
+// mert a GitHub-tároló nyilvános.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function household() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email in ['ELSO.CIM@gmail.com', 'MASODIK.CIM@gmail.com'];
+    }
+    match /{document=**} {
+      allow read, write: if household();
+    }
+  }
+}
