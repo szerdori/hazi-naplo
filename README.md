@@ -1,4 +1,4 @@
-# Házi Napló
+# MomAssistant
 
 Házimunka- és bevásárlásnapló. A bejegyzésekből megtanulja, mit milyen gyakran csináltok vagy vesztek, és ez alapján előre jelez. A saját szabályaid (pl. „hétfőn és csütörtökön nem vásárolunk”) felülírják a megfigyelt mintát.
 
@@ -47,10 +47,8 @@ Nyisd meg a címet a telefonon, lépj be Google-fiókkal, majd:
 A claude.ai-os változatban: **Szabályok → Adatok → Adatok másolása (JSON)**. Az új appban: **Szabályok → Adatok → Importálás**, majd illeszd be és nyomd meg a **Betöltés** gombot.
 
 ## Frissítés
-Minden változtatás után:
+Minden változtatás után futtasd a projektmappában:
 ```
-git add -A
-git commit -m "Mit változtattunk"
-git push
+.\feltoltes.ps1 "Mit változtattunk"
 ```
-A GitHub Pages egy-két percen belül kiteszi az új verziót. A hozzáférési szabályok (`firestore.rules`) változását viszont a Firebase konzolban kell kézzel közzétenni.
+vagy kattints duplán a `feltoltes.cmd` fájlra. A szkript megmutatja, mely fájlok változtak, rákérdez egy rövid leírásra, majd feltölti őket. A GitHub Pages egy-két percen belül kiteszi az új verziót. A hozzáférési szabályok (`firestore.rules`) változását viszont a Firebase konzolban kell kézzel közzétenni.

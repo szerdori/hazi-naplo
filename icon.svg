@@ -1,1 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#2E6B5E"/><path d="M128 250 256 150l128 100" fill="none" stroke="#fff" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"/><path d="M160 236v128h192V236" fill="none" stroke="#fff" stroke-width="30" stroke-linejoin="round"/><path d="m214 304 30 30 56-60" fill="none" stroke="#F6E3D2" stroke-width="28" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4C9A86"/>
+      <stop offset="1" stop-color="#1F4F45"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <path d="M256 112 92 248h50v134a24 24 0 0 0 24 24h180a24 24 0 0 0 24-24V248h50z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="24" stroke-linejoin="round"/>
+  <path d="M256 376c-6-6-70-48-70-92 0-24 18-42 40-42 14 0 24 7 30 18 6-11 16-18 30-18 22 0 40 18 40 42 0 44-64 86-70 92z" fill="#EF8F73"/>
+  <path d="M404 96c4 22 10 28 32 32-22 4-28 10-32 32-4-22-10-28-32-32 22-4 28-10 32-32z" fill="#F8E0C8"/>
+  <circle cx="122" cy="132" r="9" fill="#F8E0C8" opacity=".8"/>
+</svg>
