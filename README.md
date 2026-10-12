@@ -28,8 +28,8 @@ Töltsd le és telepítsd: https://git-scm.com/download/win. Az alapbeállítás
 
 ### 3. Firebase-projekt
 1. https://console.firebase.google.com → **Projekt létrehozása**, név: `hazi-naplo`. A Google Analytics kikapcsolható.
-2. **Build → Authentication → Get started → Sign-in method → Google → Enable**, add meg a saját e-mail címedet támogatási címként, **Save**.
-3. **Build → Firestore Database → Create database**. Helyszín: `eur3 (europe-west)`. Mód: **production**.
+2. **Product categories → Authentication → Get started → Sign-in method → Google → Enable**, add meg a saját e-mail címedet támogatási címként, **Save**.
+3. **Product categories → Firestore Database → Create database**. Helyszín: `eur3 (europe-west)`. Mód: **production**.
 4. A Firestore **Rules** fülén cseréld le a szöveget a `firestore.rules` tartalmára, a két mintacímet írd át a saját és a férjed Google-címére, majd **Publish**.
 5. Fogaskerék → **Project settings → General → Your apps → Web (`</>`)**. Név: `Házi Napló`, a Firebase Hosting pipát hagyd üresen. A megjelenő `firebaseConfig` értékeit másold be a `firebase-config.js`-be (vagy add oda Claude-nak).
 6. **Authentication → Settings → Authorized domains → Add domain:** `<github-felhasználóneved>.github.io`
