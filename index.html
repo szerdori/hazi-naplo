@@ -155,6 +155,37 @@ ul.ticks li::before { content: ""; position: absolute; left: 4px; top: .55em; wi
 .small { font-size: 13px; color: var(--muted); }
 .row input[type=month] { width: 150px; min-height: 36px; padding: 4px 8px; flex: none; }
 .warn-text { color: var(--due); }
+.card.today { gap: 8px; }
+.card.today.enough { border-color: var(--accent); background: var(--accent-soft); }
+.card.today.over { border-color: var(--due); background: var(--due-soft); }
+.big-num { font-family: var(--font-display); font-weight: 700; font-size: 34px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.big-num span { font-size: 20px; color: var(--muted); }
+.big-num .unit { font-family: var(--font-body); font-weight: 500; font-size: 15px; }
+.meter { height: 10px; border-radius: 999px; background: var(--bg); overflow: hidden; }
+.card.today.enough .meter, .card.today.over .meter { background: var(--surface); }
+.meter div { height: 100%; border-radius: 999px; background: var(--accent); transition: width .3s ease; }
+.card.today.over .meter div { background: var(--due); }
+.week-top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.flower { width: 96px; height: 96px; flex: none; }
+.petal { fill: transparent; stroke: var(--muted); stroke-width: 1.5; opacity: .5; }
+.petal.on { fill: var(--due); stroke: var(--due); opacity: 1; }
+.petal.today { stroke-dasharray: 3 3; }
+.flower-mid { fill: var(--accent); }
+.pick b { font-weight: 700; color: var(--accent); }
+.cats { gap: 8px; }
+.cat-row { display: grid; grid-template-columns: minmax(90px, 34%) 1fr 32px; align-items: center; gap: 10px; font-size: 14px; }
+.cat-row b { text-align: right; font-variant-numeric: tabular-nums; }
+.cat-bar { height: 10px; border-radius: 4px; background: var(--bg); overflow: hidden; }
+.cat-bar span { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
+svg.chart { width: 100%; height: auto; display: block; }
+svg.chart .grid { stroke: var(--line); stroke-width: 1; }
+svg.chart .axis { fill: var(--muted); font-size: 10px; font-family: var(--font-body); }
+svg.chart .val { fill: var(--ink); font-size: 11px; font-weight: 700; font-family: var(--font-body); }
+svg.chart .bar { fill: var(--accent); opacity: .55; }
+svg.chart .bar.now { opacity: 1; }
+svg.chart g:hover .bar { opacity: .85; }
+svg.chart .ref { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 4 4; opacity: .6; }
+@media (prefers-reduced-motion: reduce) { .meter div { transition: none; } }
 .login { display: grid; gap: 14px; justify-items: start; margin-top: 28px; }
 </style>
 </head>
@@ -373,7 +404,7 @@ function logChore(choreId, ts = Date.now()) {
   const k = dayKey(ts);
   const cur = S.logs[k] || { date: k, entries: [] };
   const task = findTask(choreId);
-  const entry = { id: rid(), chore: choreId, name: task ? taskLabel(task) : '', t: ts };
+  const entry = { id: rid(), chore: choreId, name: task ? taskLabel(task) : '', t: ts, by: S.auth.email || '' };
   S.logs = { ...S.logs, [k]: { date: k, entries: [...cur.entries, entry] } };
   persist('logs/' + k, () => S.logs[k]);
   return { k, id: entry.id };
@@ -417,6 +448,121 @@ function toast(msg, undo) {
 function dbBanner() {
   return S.dbMissing ? '<div class="banner warn">Nem sikerült kapcsolódni az adatbázishoz. Frissítsd az oldalt; ha így marad, jelentkezz ki és be.</div>' : '';
 }
+// ---------- visible work: stats ----------
+// Every logged action counts as one unit of work: chores, robot zones, family care, playground visits and bought items.
+const isMine = by => !by || by === S.auth.email; // entries from before "by" existed belong to whoever looks
+function workEvents() {
+  const out = [];
+  for (const e of allEntries()) {
+    let cat = 'Egyéb', label = e.name || 'Egyéb';
+    if (String(e.chore).startsWith('place-')) { cat = 'Játszótér'; label = 'Játszótér'; }
+    else {
+      const c = findTask(e.chore);
+      if (c && c.group === 'apolas') { cat = 'Családi ápolás'; label = c.name; }
+      else if (c && groupOf(c) === 'robot') { cat = 'Robotporszívó'; label = 'Robot: ' + c.name; }
+      else if (c) { cat = 'Házimunka'; label = c.name; }
+    }
+    out.push({ t: e.t, cat, label, by: e.by || '' });
+  }
+  for (const it of S.items) for (const b of (it.bought || [])) out.push({ t: b.t, cat: 'Bevásárlás', label: 'Bevásárolt tétel', by: b.by || '' });
+  return out;
+}
+const weekStart = t => addDays(t, -((new Date(t).getDay() + 6) % 7));
+function countByDay(evs) { const m = {}; for (const e of evs) { const d = sod(e.t); m[d] = (m[d] || 0) + 1; } return m; }
+function capacity(mine) {
+  const today = sod(Date.now()), byDay = countByDay(mine.filter(e => e.t < today && e.t >= addDays(today, -28)));
+  const days = Object.keys(byDay).map(Number);
+  if (days.length < 5) return { cap: null, n: days.length };
+  const same = days.filter(d => new Date(d).getDay() === new Date().getDay()).map(d => byDay[d]);
+  return { cap: Math.max(1, Math.round(median(same.length >= 3 ? same : days.map(d => byDay[d])))), n: days.length };
+}
+function tally(evs) { const m = {}; for (const e of evs) m[e.label] = (m[e.label] || 0) + 1; return Object.entries(m).sort((a, b) => b[1] - a[1]); }
+function todayCard(tasks, entries) {
+  const today = sod(Date.now()), mine = workEvents().filter(e => isMine(e.by));
+  const done = mine.filter(e => e.t >= today), n = done.length;
+  const { cap, n: days } = capacity(mine);
+  const evening = new Date().getHours() >= 18;
+  const doneToday = new Set(entries.filter(e => e.t >= today).map(e => e.chore));
+  const open = tasks.filter(x => x.i.due != null && x.i.due <= today && !doneToday.has(x.c.id)).sort((a, b) => a.i.due - b.i.due);
+  let msg, cls = '';
+  if (cap == null) msg = 'Még tanulom, mennyi egy átlagos napod (' + days + '/5 nap adat). Addig is: minden koppintás számít.';
+  else if (n >= cap * 1.5) { cls = ' over'; msg = 'Ma jóval többet csináltál a szokásosnál. Ha teheted, pihenj.'; }
+  else if (n >= cap) { cls = ' enough'; msg = 'Mára elég. ' + (open.length ? 'Ami még hátravan (' + open.length + '), ráér.' : 'Minden esedékes dolog kész.'); }
+  else {
+    const next = open.slice(0, Math.min(3, cap - n));
+    msg = next.length ? 'Ha még belefér: ' + next.map(x => taskLabel(x.c)).join(', ') + '.' : 'Nincs több esedékes dolog mára.';
+  }
+  const pct = cap ? Math.min(100, Math.round(n / cap * 100)) : 0;
+  return '<section><div class="card today' + cls + '"><div class="section-head"><h2>' + (evening ? 'Napi lezárás' : 'Mára') + '</h2>' +
+    (cap ? '<span class="hint">reális nap: kb. ' + cap + '</span>' : '') + '</div>' +
+    '<div class="big-num">' + n + (cap ? '<span> / ' + cap + '</span>' : '') + ' <span class="unit">intézve ma</span></div>' +
+    (cap ? '<div class="meter" role="img" aria-label="' + n + ' a ' + cap + '-ből"><div style="width:' + pct + '%"></div></div>' : '') +
+    '<div>' + esc(msg) + '</div>' +
+    (evening && n ? '<div class="small">Ma: ' + esc(tally(done).map(([l, c]) => (c > 1 ? c + '× ' : '') + l.toLowerCase()).join(', ')) + '</div>' : '') +
+    '</div></section>';
+}
+function barPath(x, y, w, h) { const r = Math.min(4, w / 2, h); return 'M' + x + ' ' + (y + h) + 'V' + (y + r) + 'Q' + x + ' ' + y + ' ' + (x + r) + ' ' + y + 'H' + (x + w - r) + 'Q' + (x + w) + ' ' + y + ' ' + (x + w) + ' ' + (y + r) + 'V' + (y + h) + 'Z'; }
+function barChart(vals, labels, tips, opts = {}) {
+  const W = 340, H = 150, L = 26, B = 22, T = 12, n = vals.length;
+  const top = Math.max(2, ...vals, opts.ref || 0), max = Math.ceil(top / 2) * 2;
+  const y = v => T + (H - T - B) * (1 - v / max), slot = (W - L) / n, bw = Math.max(4, slot - 4);
+  let s = '<svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + esc(opts.title || '') + '">';
+  for (const g of [0, max / 2, max]) s += '<line x1="' + L + '" x2="' + W + '" y1="' + y(g) + '" y2="' + y(g) + '" class="grid"/><text x="' + (L - 6) + '" y="' + (y(g) + 4) + '" class="axis" text-anchor="end">' + g + '</text>';
+  vals.forEach((v, i) => {
+    const x = L + i * slot + (slot - bw) / 2, last = i === n - 1;
+    s += '<g><title>' + esc(tips[i]) + '</title><rect x="' + (L + i * slot) + '" y="' + T + '" width="' + slot + '" height="' + (H - T - B) + '" fill="transparent"/>' +
+      (v > 0 ? '<path d="' + barPath(x, y(v), bw, y(0) - y(v)) + '" class="bar' + (last ? ' now' : '') + '"/>' : '') +
+      (last && v > 0 ? '<text x="' + (x + bw / 2) + '" y="' + (y(v) - 4) + '" class="val" text-anchor="middle">' + v + '</text>' : '') + '</g>';
+    if (labels[i]) s += '<text x="' + (x + bw / 2) + '" y="' + (H - 6) + '" class="axis" text-anchor="middle">' + esc(labels[i]) + '</text>';
+  });
+  if (opts.ref) s += '<line x1="' + L + '" x2="' + W + '" y1="' + y(opts.ref) + '" y2="' + y(opts.ref) + '" class="ref"><title>reális nap: kb. ' + opts.ref + '</title></line>';
+  return s + '</svg>';
+}
+function flower(active, todayIdx) {
+  // one petal per weekday (Mon..Sun); a day with any logged work opens its petal; missed days just stay closed
+  let s = '<svg class="flower" viewBox="0 0 120 120" role="img" aria-label="' + active.filter(Boolean).length + ' aktív nap a héten">';
+  active.forEach((on, i) => {
+    const a = i * 360 / 7 - 90;
+    s += '<ellipse cx="60" cy="30" rx="13" ry="24" transform="rotate(' + (a + 90) + ' 60 60)" class="petal' + (on ? ' on' : '') + (i === todayIdx ? ' today' : '') + '"><title>' + ['Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat', 'Vasárnap'][i] + (on ? ': aktív' : '') + '</title></ellipse>';
+  });
+  return s + '<circle cx="60" cy="60" r="14" class="flower-mid"/></svg>';
+}
+function statsSection() {
+  const now = Date.now(), today = sod(now), ws = weekStart(today);
+  const all = workEvents(), mine = all.filter(e => isMine(e.by));
+  const week = mine.filter(e => e.t >= ws);
+  const lastSpan = mine.filter(e => e.t >= addDays(ws, -7) && e.t < now - 7 * DAY);
+  const byDay = countByDay(mine);
+  const active = [0, 1, 2, 3, 4, 5, 6].map(i => !!byDay[addDays(ws, i)]);
+  const todayIdx = diffDays(today, ws);
+  const top = tally(week).slice(0, 8);
+  const cats = Object.entries(week.reduce((m, e) => (m[e.cat] = (m[e.cat] || 0) + 1, m), {})).sort((a, b) => b[1] - a[1]);
+  const catMax = Math.max(1, ...cats.map(c => c[1]));
+  const { cap } = capacity(mine);
+  let h = '<section><div class="section-head"><h2>Ez a hét</h2><span class="hint">hétfőtől</span></div><div class="card week">' +
+    '<div class="week-top"><div><div class="big-num">' + week.length + ' <span class="unit">dolgot intéztél</span></div>' +
+    '<div class="small">' + 'A múlt hét ugyanezen pontján: ' + lastSpan.length + '</div>' +
+    '<div class="small">' + active.filter(Boolean).length + ' aktív nap a héten</div></div>' + flower(active, todayIdx) + '</div>' +
+    (top.length ? '<div class="chips">' + top.map(([l, c]) => '<span class="pick">' + esc(l) + ' <b>×' + c + '</b></span>').join('') + '</div>' : '<div class="small">Ezen a héten még nincs bejegyzés.</div>') +
+    '</div></section>';
+  if (cats.length) h += '<section><h2>Mire ment el a hét?</h2><div class="card cats">' + cats.map(([c, v]) =>
+    '<div class="cat-row"><span>' + esc(c) + '</span><span class="cat-bar"><span style="width:' + Math.round(v / catMax * 100) + '%"></span></span><b>' + v + '</b></div>').join('') + '</div></section>';
+  const d14 = [...Array(14)].map((_, i) => addDays(today, i - 13));
+  h += '<section><div class="section-head"><h2>Az elmúlt két hét</h2>' + (cap ? '<span class="hint">szaggatott vonal: reális nap</span>' : '') + '</div><div class="card">' + barChart(d14.map(d => byDay[d] || 0),
+    d14.map((d, i) => i % 2 === 1 ? WDS[new Date(d).getDay()] : ''), d14.map(d => longDate(d) + ': ' + (byDay[d] || 0) + ' dolog'), { ref: cap, title: 'Napi intézett dolgok, elmúlt 14 nap' }) + '</div></section>';
+  const w8 = [...Array(8)].map((_, i) => addDays(ws, (i - 7) * 7));
+  const wTotals = w8.map(w => mine.filter(e => e.t >= w && e.t < addDays(w, 7)).length);
+  h += '<section><h2>Hetek</h2><div class="card">' + barChart(wTotals, w8.map(w => MON[new Date(w).getMonth()].slice(0, 3) + ' ' + new Date(w).getDate()),
+    w8.map((w, i) => MON[new Date(w).getMonth()] + ' ' + new Date(w).getDate() + '. heti összesen: ' + wTotals[i]), { title: 'Heti összesen, elmúlt 8 hét' }) + '</div></section>';
+  const people = {};
+  for (const e of all.filter(e => e.t >= ws && e.by)) people[e.by] = (people[e.by] || 0) + 1;
+  if (Object.keys(people).length >= 2) {
+    const pMax = Math.max(...Object.values(people));
+    h += '<section><h2>Ki mit intézett a héten?</h2><div class="card cats">' + Object.entries(people).sort((a, b) => b[1] - a[1]).map(([by, v]) =>
+      '<div class="cat-row"><span>' + esc(by === S.auth.email ? 'Te' : by.split('@')[0]) + '</span><span class="cat-bar"><span style="width:' + Math.round(v / pMax * 100) + '%"></span></span><b>' + v + '</b></div>').join('') + '</div></section>';
+  }
+  return h;
+}
 function viewMa() {
   const entries = allEntries();
   const today = sod(Date.now());
@@ -427,7 +573,8 @@ function viewMa() {
   const todays = entries.filter(e => e.t >= today).reverse();
   setHead('Ma', dueCount ? dueCount + ' teendő esedékes ma vagy már késésben van.' : 'Koppints arra, amit elvégeztél.');
   let h = dbBanner();
-  if (!todays.length && new Date().getHours() >= 18) h += '<div class="banner warn">Ma még nincs bejegyzés. Mit sikerült megcsinálni?</div>';
+  h += todayCard([...chores, ...fam], entries);
+  if (new Date().getDay() === 0) h += '<div class="banner">Vasárnap van: elkészült a heti összefoglalód. <button class="btn ghost sm" data-act="tab" data-tab="naplo">Megnézem</button></div>';
   for (const g of GROUPS) {
     const list = chores.filter(x => groupOf(x.c) === g.id);
     if (!list.length && g.id !== 'haz') continue;
@@ -468,7 +615,7 @@ function entryRow(e) {
     '<button class="x" aria-label="Bejegyzés törlése" data-act="del-entry" data-k="' + dayKey(e.t) + '" data-id="' + esc(e.id) + '">×</button></div>';
 }
 function viewNaplo() {
-  setHead('Napló', 'Az elmúlt két hét. Itt pótolhatod, ha valamit elfelejtettél beírni.');
+  setHead('Napló', 'Mennyi munka megy el a háztartásra, és mit csináltál az elmúlt két hétben.');
   const entries = allEntries();
   const now = new Date();
   const opts = GROUPS.map(g => {
@@ -476,6 +623,7 @@ function viewNaplo() {
     return cs.length ? '<optgroup label="' + esc(g.title) + '">' + cs.map(c => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('') + '</optgroup>' : '';
   }).join('') + '<optgroup label="Családi ápolás">' + famTasks().map(c => '<option value="' + esc(c.id) + '">' + esc(taskLabel(c)) + '</option>').join('') + '</optgroup>';
   let h = dbBanner();
+  h += statsSection();
   h += '<section><h2>Pótlás</h2><form class="inline" data-form="backfill">' +
     '<select id="bf-chore" required aria-label="Házimunka">' + opts + '</select>' +
     '<input id="bf-date" type="date" required value="' + dayKey(addDays(now, -1)) + '" max="' + dayKey(now) + '" aria-label="Nap">' +
@@ -862,7 +1010,7 @@ function addToShopping(name) {
 function logVisit(place) {
   const ts = Date.now(), k = dayKey(ts);
   const cur = S.logs[k] || { date: k, entries: [] };
-  const entry = { id: rid(), chore: 'place-' + place.id, name: 'Játszótér: ' + place.name, t: ts };
+  const entry = { id: rid(), chore: 'place-' + place.id, name: 'Játszótér: ' + place.name, t: ts, by: S.auth.email || '' };
   S.logs = { ...S.logs, [k]: { date: k, entries: [...cur.entries, entry] } };
   persist('logs/' + k, () => S.logs[k]);
   return { k, id: entry.id };
@@ -919,7 +1067,7 @@ document.addEventListener('click', e => {
   if (a === 'bought') {
     const it = S.items.find(x => x.id === id); if (!it) return;
     const prev = it;
-    saveItem({ ...it, onList: false, bought: [...(it.bought || []), { t: Date.now(), store: it.store || '' }].slice(-60) });
+    saveItem({ ...it, onList: false, bought: [...(it.bought || []), { t: Date.now(), store: it.store || '', by: S.auth.email || '' }].slice(-60) });
     toast(it.name + ' megvéve.', () => saveItem(prev));
   }
   if (a === 'unlist') { const it = S.items.find(x => x.id === id); if (it) { saveItem({ ...it, onList: false }); toast(it.name + ' levéve a listáról.', () => saveItem(it)); } }
