@@ -111,8 +111,8 @@ textarea { width: 100%; min-height: 140px; border: 1px solid var(--line); border
 
 /* bottom nav */
 nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
-nav.tabs .in { max-width: 640px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
-nav.tabs button { border: 0; background: transparent; padding: 10px 4px 12px; font-size: 13px; font-weight: 600; color: var(--muted); display: grid; justify-items: center; gap: 3px; }
+nav.tabs .in { max-width: 640px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); }
+nav.tabs button { border: 0; background: transparent; padding: 10px 2px 12px; font-size: 12px; font-weight: 600; color: var(--muted); display: grid; justify-items: center; gap: 3px; }
 nav.tabs button svg { width: 22px; height: 22px; }
 nav.tabs button[aria-current="page"] { color: var(--accent); }
 
@@ -135,6 +135,26 @@ nav.tabs button[aria-current="page"] { color: var(--accent); }
 details.fam-rules { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
 details.fam-rules summary { padding: 12px 14px; cursor: pointer; font-weight: 600; }
 details.fam-rules .list { border: 0; border-top: 1px solid var(--line); border-radius: 0; }
+.trip { gap: 12px; }
+.field { display: grid; gap: 4px; font-size: 13px; color: var(--muted); flex: 1 1 130px; }
+.field select { color: var(--ink); }
+.trip .inline { align-items: end; }
+.pick.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.wx { display: grid; gap: 2px; }
+.wx-temp { font-family: var(--font-display); font-weight: 700; font-size: 30px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kids { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+ul.ticks { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+ul.ticks li { padding-left: 20px; position: relative; }
+ul.ticks li::before { content: ""; position: absolute; left: 4px; top: .55em; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.check.on { background: var(--accent); border-color: var(--accent); }
+.grow.done { color: var(--muted); text-decoration: line-through; }
+.places-top { display: grid; gap: 10px; }
+.place { display: flex; align-items: center; gap: 12px; }
+.place .nm { font-weight: 600; }
+.place.top .nm { font-family: var(--font-display); font-size: 17px; }
+.small { font-size: 13px; color: var(--muted); }
+.row input[type=month] { width: 150px; min-height: 36px; padding: 4px 8px; flex: none; }
+.warn-text { color: var(--due); }
 .login { display: grid; gap: 14px; justify-items: start; margin-top: 28px; }
 </style>
 </head>
@@ -153,6 +173,7 @@ details.fam-rules .list { border: 0; border-top: 1px solid var(--line); border-r
   <button data-act="tab" data-tab="ma"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></svg>Ma</button>
   <button data-act="tab" data-tab="bolt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1.2 11.2a1 1 0 0 1-1 .8H7.2a1 1 0 0 1-1-.8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>Bevásárlás</button>
   <button data-act="tab" data-tab="naplo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Napló</button>
+  <button data-act="tab" data-tab="jatszo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="3"/><path d="M12 2v1M5 7H4M20 7h-1M7 3.5l.7.7M17 3.5l-.7.7"/><path d="M4 21l4-8h8l4 8"/><path d="M9 21v-4h6v4"/></svg>Játszótér</button>
   <button data-act="tab" data-tab="szabaly"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Szabályok</button>
 </div></nav>
 
@@ -254,7 +275,8 @@ function allEntries() {
 function sortedChores() { return S.chores.filter(c => c.group !== 'apolas').sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.name.localeCompare(b.name, 'hu')); }
 // Family care: every person × activity pair is a task. Its stored doc exists only once its rule was changed.
 // People and activities carry a stable id (first derived from the name), so renaming keeps their history.
-const DEFAULT_FAMILY = { people: ['Anya', 'Miró', 'Maja'], activities: ['Hajmosás', 'Körömvágás', 'Hajvágás', 'Fogkefecsere', 'Ágyneműcsere'] };
+// Family members (names, birth months) are entered in the app and stored in the private database only.
+const DEFAULT_FAMILY = { people: [], activities: ['Hajmosás', 'Körömvágás', 'Hajvágás', 'Fogkefecsere', 'Ágyneműcsere'] };
 const slug = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const normList = l => (l || []).map(x => typeof x === 'string' ? { id: slug(x), name: x } : x);
 const family = () => { const f = S.config.family || DEFAULT_FAMILY; return { people: normList(f.people), activities: normList(f.activities) }; };
@@ -419,6 +441,7 @@ function viewMa() {
       '</button>').join('') + '</div>';
     h += '</section>';
   }
+  if (!family().people.length) h += '<section><h2>Család</h2><div class="list"><div class="empty">Add meg a családtagokat a Szabályok fülön, és itt követheted a hajmosást, körömvágást és a többit.</div></div></section>';
   if (fam.length) {
     h += '<section><div class="section-head"><h2>Család</h2><span class="hint">Koppints, ha megvolt</span></div><div class="fam">';
     for (const p of family().people) {
@@ -558,9 +581,17 @@ function viewSzabaly() {
   const f = family();
   const tag = (x, key, act, i) => isEditing(key, x.id) ? renameForm(key, x.id, x.name)
     : '<span class="pick tag">' + esc(x.name) + editBtn(key, x.id, x.name) + '<button class="x" aria-label="' + esc(x.name) + ' törlése" data-act="' + act + '" data-i="' + i + '">×</button></span>';
+  const thisMonth = dayKey(Date.now()).slice(0, 7);
+  h += '<section><h2>Családtagok</h2><div class="hint">A születési hónap nem kötelező. Ebből számolja az app az életkort; a 12 év alattiakat gyerekként kezeli a Játszótér fülön. Csak a ti adatbázisotokban tárolódik.</div><div class="list">' +
+    (f.people.length ? f.people.map((p, i) => isEditing('people', p.id)
+      ? '<div class="row">' + renameForm('people', p.id, p.name) + '</div>'
+      : '<div class="row"><div class="grow"><div>' + esc(p.name) + '</div>' + (p.birth ? '<div class="small">' + esc(ageText(p.birth)) + '</div>' : '') + '</div>' +
+        '<input type="month" id="person-birth-' + esc(p.id) + '" data-change="person-birth" data-id="' + esc(p.id) + '" value="' + esc(p.birth || '') + '" max="' + thisMonth + '" aria-label="' + esc(p.name) + ' születési hónapja">' +
+        editBtn('people', p.id, p.name) + '<button class="x" aria-label="' + esc(p.name) + ' törlése" data-act="del-person" data-i="' + i + '">×</button></div>').join('')
+      : '<div class="empty">Még nincs családtag megadva.</div>') +
+    '</div><form class="inline" data-form="add-person"><input id="person-name" placeholder="Név" required aria-label="Családtag neve">' +
+    '<input type="month" id="person-birth" max="' + thisMonth + '" aria-label="Születési hónap (nem kötelező)"><button class="btn" type="submit">Hozzáad</button></form></section>';
   h += '<section><h2>Családi ápolás</h2><div class="card">' +
-    '<div class="label">Családtagok</div><div class="chips">' + f.people.map((p, i) => tag(p, 'people', 'del-person', i)).join('') + '</div>' +
-    '<form class="inline" data-form="add-person"><input id="person-name" placeholder="Új családtag" required aria-label="Új családtag"><button class="btn" type="submit">Hozzáad</button></form>' +
     '<div class="label">Mit követünk mindenkinél?</div><div class="chips">' + f.activities.map((a, i) => tag(a, 'activities', 'del-activity', i)).join('') + '</div>' +
     '<form class="inline" data-form="add-activity"><input id="activity-name" placeholder="Új tevékenység, pl. Fürdetés" required aria-label="Új tevékenység"><button class="btn" type="submit">Hozzáad</button></form>' +
     '</div>';
@@ -570,6 +601,23 @@ function viewSzabaly() {
       fam.filter(c => c.person === p.name).map(c => ruleRow(c, false)).join('') + '</div></details>';
   }
   h += '</section>';
+  h += '<section><h2>Játszóhelyek</h2><div class="hint">Nyisd le a helyet a tulajdonságaihoz; ezek alapján rangsorol a Játszótér fül.</div>' +
+    places().map(p => {
+      const key = 'place-' + p.id, tags = p.tags || [];
+      const label = PLACE_TAGS.filter(([t]) => tags.includes(t)).map(([, l]) => l).join(', ');
+      return '<details class="fam-rules" data-person="' + esc(key) + '"' + (S.famOpen.has(key) ? ' open' : '') + '><summary>' + esc(p.name) +
+        (label ? ' <span class="hint">· ' + esc(label) + '</span>' : '') + '</summary><div class="card" style="border:0">' +
+        (isEditing('place', p.id) ? renameForm('place', p.id, p.name)
+          : '<div class="inline"><button class="btn ghost sm" data-act="edit" data-kind="place" data-key="' + esc(p.id) + '">Átnevezés</button><button class="btn ghost sm" data-act="del-place" data-id="' + esc(p.id) + '">Törlés</button></div>') +
+        '<div class="chips">' + PLACE_TAGS.map(([t, l]) => '<button class="pick' + (tags.includes(t) ? ' on' : '') + '" aria-pressed="' + tags.includes(t) + '" data-act="toggle-ptag" data-id="' + esc(p.id) + '" data-tag="' + t + '">' + l + '</button>').join('') + '</div></div></details>';
+    }).join('') +
+    '<form class="inline" data-form="add-place"><input id="place-name" placeholder="Új hely, pl. Kopaszi-gát" required aria-label="Új hely"><button class="btn" type="submit">Hozzáad</button></form></section>';
+  h += '<section><h2>Hátizsák alaplista</h2><div class="list">' + bagBase().map(b => isEditing('bag', b.id)
+      ? '<div class="row">' + renameForm('bag', b.id, b.name) + '</div>'
+      : '<div class="row"><span class="grow">' + esc(b.name) + '</span><button class="pick' + (b.buy ? ' on' : '') + '" aria-pressed="' + !!b.buy + '" data-act="toggle-buy" data-id="' + esc(b.id) + '">Fogyóeszköz</button>' +
+        editBtn('bag', b.id, b.name) + '<button class="x" aria-label="' + esc(b.name) + ' törlése" data-act="del-bag" data-id="' + esc(b.id) + '">×</button></div>').join('') +
+    '</div><form class="inline" data-form="add-bag"><input id="bag-name" placeholder="Új tétel, pl. Homokozó játék" required aria-label="Új tétel"><button class="btn" type="submit">Hozzáad</button></form>' +
+    '<div class="hint">A fogyóeszközöknél a Játszótér fülön megjelenik a „Fogyóban” gomb, ami felteszi a bevásárlólistára.</div></section>';
   h += '<section><h2>Adatok</h2><div class="card"><div class="hint">Mentésként vagy átköltözéshez az összes adat kimásolható, és egy korábbi mentés visszatölthető.</div>' +
     '<div class="inline"><button class="btn ghost sm" data-act="export">Adatok másolása (JSON)</button><button class="btn ghost sm" data-act="import-open">Importálás</button></div>' +
     (S.copyText != null && S.copyTitle === 'export' ? copyBox() : '') +
@@ -577,6 +625,247 @@ function viewSzabaly() {
     '</div></section>';
   h += '<section><h2>Fiók</h2><div class="card"><div>Bejelentkezve: <b>' + esc(S.auth.email) + '</b></div><button class="btn ghost sm" data-act="sign-out" style="justify-self:start">Kijelentkezés</button></div></section>';
   return h;
+}
+// ---------- playground helper ----------
+const HOME = { lat: 47.4728, lon: 19.0436 }; // Budapest XI. kerület
+// Kids (name + birth month) live in the private database, set on the Szabályok tab, never in this public code.
+const WARM_BIAS = 2; // both kids run warm: dress them as if it were this many degrees warmer
+const PLACE_TAGS = [
+  ['kozel', 'Közel van'], ['picik', 'Sok játék a piciknek'], ['bicikli', 'Jó biciklizni'], ['nagy', 'Nagy terület'],
+  ['arnyekos', 'Árnyékos'], ['huvos', 'Hűvösebb (hegy)'], ['fedett', 'Fedett, rossz időre'],
+  ['zsufolt', 'Gyakran zsúfolt'], ['iskolaido', 'Iskolaidőben zsúfolt'],
+];
+const DEFAULT_PLACES = [
+  { id: 'eperke', name: 'Eperke játszótér', tags: ['kozel'] },
+  { id: 'tulipanos', name: 'Tulipános játszótér', tags: ['picik', 'iskolaido'] },
+  { id: 'bohocos', name: 'Bohócos játszótér', tags: ['kozel', 'zsufolt'] },
+  { id: 'normafa', name: 'Normafa játszótér', tags: ['bicikli', 'huvos'] },
+  { id: 'erem', name: 'Érem utcai játszótér', tags: [] },
+  { id: 'bikas', name: 'Bikás park', tags: ['bicikli', 'nagy'] },
+  { id: 'decathlon', name: 'Decathlon', tags: ['fedett'] },
+  { id: 'obi', name: 'OBI', tags: ['fedett'] },
+  { id: 'ikea', name: 'IKEA', tags: ['fedett'] },
+  { id: 'brendon', name: 'Brendon', tags: ['fedett'] },
+  { id: 'allee', name: 'Allee', tags: ['fedett'] },
+];
+const PLACE_IDEAS = [
+  { name: 'Feneketlen-tó játszótér', note: 'Villányi út – Tas vezér utca; fás, forgalomtól távol, baba-mama hinta', tags: ['arnyekos', 'picik'] },
+  { name: 'Kopaszi-gát játszótér', note: 'Duna-part, nagy terület, jó biciklizni', tags: ['bicikli', 'nagy'] },
+  { name: 'Madárhegyi Gyermekliget', note: 'Gazdagrét, 2024-ben épült új játszótér', tags: [] },
+  { name: 'Elevenpark (Újbuda Center)', note: 'fedett, fizetős, külön játszószoba a piciknek', tags: ['fedett', 'picik'] },
+];
+const DEFAULT_BAG = [
+  { id: 'alatet', name: 'Pelenkázó alátét' }, { id: 'popsitorlo', name: 'Popsitörlő', buy: true },
+  { id: 'pelenka', name: 'Pelenka', buy: true }, { id: 'valtas', name: 'Váltás ruha (póló, nadrág, zokni)' },
+  { id: 'gyumipure', name: 'Gyümipüré ×2', buy: true }, { id: 'kulacs', name: 'Kulacs ×2' },
+  { id: 'bulata', name: 'Buláta', buy: true }, { id: 'alma', name: 'Alma', buy: true },
+];
+const SNACK_IDEAS = ['Puffasztott kukorica vagy rizs', 'Banán', 'Rizskeksz', 'Sajtkocka', 'Uborka- vagy répacsík', 'Otthon sütött zabpelyhes mini muffin', 'Fél főtt tojás', 'Negyedelt szőlő vagy koktélparadicsom'];
+const places = () => S.config.places || DEFAULT_PLACES;
+const bagBase = () => S.config.bag || DEFAULT_BAG;
+const kids = () => family().people.filter(p => { const m = ageMonths(p.birth); return m != null && m < 144; });
+function ageMonths(birth) {
+  const [y, m] = String(birth || '').split('-').map(Number); if (!y || !m) return null;
+  const n = new Date(); return (n.getFullYear() - y) * 12 + (n.getMonth() + 1 - m);
+}
+function ageText(birth) {
+  const mo = ageMonths(birth); if (mo == null || mo < 0) return '';
+  if (mo < 12) return mo + ' hónapos';
+  if (mo < 24) return '1 éves' + (mo % 12 ? ' ' + (mo % 12) + ' hónapos' : '');
+  return String(Math.floor(mo / 6) / 2).replace('.', ',') + ' éves';
+}
+
+function defaultTrip() {
+  const d = new Date(); d.setMinutes(0, 0, 0);
+  if (new Date().getMinutes() >= 30) d.setHours(d.getHours() + 1);
+  if (d.getHours() >= 19 || d.getHours() < 7) { if (d.getHours() >= 19) d.setDate(d.getDate() + 1); d.setHours(9); }
+  return { start: d.getTime(), dur: 2, bike: false };
+}
+async function loadWeather() {
+  if (S.wxLoading || (S.wx && Date.now() - S.wx.at < 30 * 60e3)) return;
+  S.wxLoading = true; S.wxError = false;
+  try {
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + HOME.lat + '&longitude=' + HOME.lon +
+      '&hourly=temperature_2m,apparent_temperature,precipitation_probability,precipitation,wind_speed_10m,uv_index,weather_code' +
+      '&timezone=Europe%2FBudapest&past_days=1&forecast_days=3';
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(r.status);
+    const j = await r.json();
+    S.wx = { at: Date.now(), h: j.hourly, times: j.hourly.time.map(t => new Date(t).getTime()) };
+  } catch { S.wxError = true; }
+  S.wxLoading = false; render();
+}
+function tripWeather(trip) {
+  if (!S.wx) return null;
+  const { h, times } = S.wx, end = trip.start + trip.dur * 3600e3;
+  const idx = times.map((t, i) => i).filter(i => times[i] >= trip.start && times[i] < end);
+  if (!idx.length) return null;
+  const pick = k => idx.map(i => h[k][i] ?? 0);
+  const before = times.map((t, i) => i).filter(i => times[i] < trip.start && times[i] >= trip.start - 12 * 3600e3);
+  return {
+    tMin: Math.min(...pick('temperature_2m')), tMax: Math.max(...pick('temperature_2m')),
+    aMin: Math.min(...pick('apparent_temperature')), aMax: Math.max(...pick('apparent_temperature')),
+    pMax: Math.max(...pick('precipitation_probability')), rain: pick('precipitation').reduce((a, b) => a + b, 0),
+    wind: Math.max(...pick('wind_speed_10m')), uv: Math.max(...pick('uv_index')),
+    code: Math.max(...pick('weather_code')),
+    wetBefore: before.reduce((a, i) => a + (h.precipitation[i] || 0), 0),
+  };
+}
+const WX_TEXT = c => c >= 95 ? 'zivatar' : c >= 71 && c <= 86 ? 'havazás' : c >= 51 ? 'eső' : c >= 45 ? 'köd' : c >= 2 ? 'felhős' : c === 1 ? 'többnyire napos' : 'napos';
+const r0 = x => Math.round(x);
+function isRainy(w) { return w.pMax >= 40 || w.rain >= 0.3; }
+function clothesFor(kid, w, trip) {
+  const felt = w.aMin + WARM_BIAS;
+  let list;
+  if (felt >= 25) list = ['Rövid ujjú póló vagy ujjatlan', 'Rövid nadrág vagy ruha', 'Szandál'];
+  else if (felt >= 20) list = ['Rövid ujjú póló', 'Rövid vagy vékony hosszú nadrág', 'Szandál vagy vászoncipő', 'Vékony pulcsi a táskába'];
+  else if (felt >= 15) list = ['Hosszú ujjú póló', 'Hosszú nadrág', 'Zárt cipő', 'Vékony pulcsi vagy kardigán'];
+  else if (felt >= 10) list = ['Hosszú ujjú póló + pulcsi', 'Hosszú nadrág', 'Zárt cipő', 'Átmeneti kabát vagy softshell'];
+  else if (felt >= 5) list = ['Hosszú ujjú body + pulcsi', 'Hosszú nadrág', 'Meleg zárt cipő', 'Bélelt kabát', 'Sapka', 'Vékony kesztyű'];
+  else if (felt >= 0) list = ['Aláöltözet + pulcsi', 'Bélelt nadrág vagy overál', 'Téli cipő', 'Téli kabát', 'Sapka és nyakmelegítő', 'Kesztyű'];
+  else list = ['Aláöltözet + polár', 'Overál', 'Bélelt csizma', 'Vastag sapka és nyakmelegítő', 'Vízálló kesztyű'];
+  const extra = [];
+  if (isRainy(w)) { list = list.map(x => /cipő|Szandál|csizma/.test(x) ? 'Gumicsizma' : x); extra.push('Esőkabát és esőnadrág'); }
+  else if (w.wetBefore >= 1) extra.push('Sárnadrág vagy gumicsizma, mert vizes lehet a talaj');
+  if (w.wind >= 25 && felt < 20) extra.push('Szélálló felső réteg');
+  if (w.uv >= 3 && felt >= 15) extra.push('Napsapka és naptej');
+  if (w.uv >= 6) extra.push('Erős a nap: délben inkább árnyékban játsszatok');
+  if (w.aMax - w.aMin >= 5) extra.push('Rétegesen, mert ' + r0(w.aMax - w.aMin) + ' fokot változik a hőérzet');
+  if (felt >= 10 && felt < 25 && w.tMin < 12 && trip.start > 0 && new Date(trip.start + trip.dur * 3600e3).getHours() >= 18) extra.push('Estére egy réteggel több');
+  if ((ageMonths(kid.birth) ?? 36) < 24 && felt < 16) extra.push('Ha babakocsiban ül, egy takaró vagy plusz réteg');
+  if (trip.bike) extra.push('Bukósisak (bicikli, futóbicikli)');
+  return { felt, list: list.concat(extra) };
+}
+function bagFor(w, trip) {
+  const add = [];
+  if (trip.dur >= 1.5) add.push('Plusz gyümölcs', 'Kis szendvics', 'Ropi vagy reggeliző keksz');
+  if (w) {
+    const felt = w.aMax + WARM_BIAS;
+    if (felt >= 24) add.push('Tartalék víz', 'Naptej', 'Napsapkák', 'Nedves törlőkendő');
+    if (isRainy(w)) add.push('Esővédő a babakocsira', 'Plusz zokni', 'Törölköző a csúszdához');
+    else if (w.wetBefore >= 1) add.push('Törölköző a csúszdához', 'Plusz zokni');
+    if (w.aMin + WARM_BIAS < 8) add.push('Termosz meleg teával', 'Tartalék kesztyű');
+  }
+  if (trip.bike) add.push('Bukósisak', 'Bicikli vagy futóbicikli');
+  return [...new Set(add)];
+}
+function lastVisit(placeId) {
+  let last = 0;
+  for (const e of allEntries()) if (e.chore === 'place-' + placeId && e.t > last) last = e.t;
+  return last || null;
+}
+function schoolTerm(t) { const d = new Date(t), m = d.getMonth(), day = d.getDate(); return !((m === 5 && day > 20) || m === 6 || m === 7); }
+function rankPlaces(w, trip) {
+  const start = new Date(trip.start), hour = start.getHours(), dow = start.getDay();
+  const weekend = dow === 0 || dow === 6;
+  const felt = w ? w.aMin + WARM_BIAS : 15, feltHot = w ? w.aMax : 20;
+  const bad = w && (w.pMax >= 50 || w.rain >= 0.5 || w.aMin < -2 || w.wind >= 40);
+  return places().map(p => {
+    const t = new Set(p.tags || []); let s = 0; const why = [], warn = [];
+    if (t.has('fedett')) { if (bad) { s += 6; why.push('rossz időben is jó'); } else s -= 4; }
+    else if (bad) { s -= 5; warn.push('kint rossz idő várható'); }
+    if (t.has('huvos')) {
+      if (feltHot >= 26) { s += 3; why.push('pár fokkal hűvösebb a melegben'); }
+      else if (felt < 12) { s -= 2; warn.push('fent pár fokkal hidegebb'); }
+    }
+    if (t.has('bicikli') && trip.bike) { s += 3; why.push('jó biciklizni'); }
+    if (t.has('nagy') && trip.dur >= 2) { s += 1; why.push('nagy terület hosszabb időre'); }
+    if (t.has('kozel')) { s += 1; if (trip.dur <= 1.5) { s += 2; why.push('közel van, rövid időre ideális'); } else why.push('közel van'); }
+    if (t.has('picik')) { s += 1; why.push('sok játék a piciknek'); }
+    if (t.has('arnyekos') && w && w.uv >= 5) { s += 2; why.push('árnyékos az erős napban'); }
+    if (t.has('zsufolt')) { s -= 1; if (weekend || (hour >= 15 && hour < 18)) { s -= 1; warn.push('ilyenkor gyakran zsúfolt'); } }
+    if (t.has('iskolaido') && !weekend && schoolTerm(trip.start) && hour >= 8 && hour < 16) { s -= 2; warn.push('iskolaidőben zsúfolt lehet'); }
+    const lv = lastVisit(p.id);
+    const ago = lv == null ? null : diffDays(Date.now(), lv);
+    if (ago === 0) { s -= 2; warn.push('ma már voltatok'); }
+    else if (ago != null && ago <= 2) { s -= 1; warn.push(ago === 1 ? 'tegnap voltatok' : '2 napja voltatok'); }
+    else if (ago == null || ago >= 10) { if (!t.has('fedett')) { s += 1; why.push(ago == null ? 'még nem jártatok itt az app szerint' : 'rég voltatok'); } }
+    return { p, s, why, warn, ago };
+  }).sort((a, b) => b.s - a.s || a.p.name.localeCompare(b.p.name, 'hu'));
+}
+function tripOptions(cur) {
+  const out = [], d = new Date(); d.setMinutes(0, 0, 0); d.setHours(d.getHours() + 1);
+  for (let i = 0; i < 40; i++) {
+    const t = d.getTime(), hh = d.getHours();
+    if (hh >= 7 && hh <= 19) out.push(t);
+    d.setHours(d.getHours() + 1);
+  }
+  if (!out.includes(cur)) out.unshift(cur);
+  return out.sort((a, b) => a - b).map(t => '<option value="' + t + '"' + (t === cur ? ' selected' : '') + '>' + dayName(t) + ' ' + hm(t) + '</option>').join('');
+}
+function bagKey(trip) { return 'bag-' + dayKey(trip.start); }
+function viewJatszo() {
+  if (!S.trip) S.trip = defaultTrip();
+  const trip = S.trip;
+  loadWeather();
+  const w = tripWeather(trip);
+  setHead('Játszótér', 'Időjárás, ruha, hátizsák és helyajánlás a következő kiruccanáshoz.');
+  let h = dbBanner();
+  h += '<section><div class="card trip"><div class="inline">' +
+    '<label class="field">Indulás<select id="trip-start" data-change="trip-start">' + tripOptions(trip.start) + '</select></label>' +
+    '<label class="field">Időtartam<select id="trip-dur" data-change="trip-dur">' + [1, 1.5, 2, 3, 4].map(x => '<option value="' + x + '"' + (x === trip.dur ? ' selected' : '') + '>' + String(x).replace('.', ',') + ' óra</option>').join('') + '</select></label>' +
+    '<button class="pick' + (trip.bike ? ' on' : '') + '" data-act="trip-bike" aria-pressed="' + trip.bike + '">Biciklivel</button></div>';
+  if (w) {
+    h += '<div class="wx"><span class="wx-temp">' + r0(w.tMin) + (r0(w.tMax) !== r0(w.tMin) ? '–' + r0(w.tMax) : '') + ' °C</span>' +
+      '<span>' + WX_TEXT(w.code) + ' · hőérzet ' + r0(w.aMin) + (r0(w.aMax) !== r0(w.aMin) ? '–' + r0(w.aMax) : '') + ' °C</span>' +
+      '<span class="hint">eső esélye ' + r0(w.pMax) + '% · szél ' + r0(w.wind) + ' km/h · UV ' + Math.round(w.uv) + '</span></div>';
+  } else h += '<div class="hint">' + (S.wxError ? 'Nem sikerült lekérni az időjárást. Ellenőrizd a netet, és nyisd meg újra a fület.' : 'Időjárás betöltése…') + '</div>';
+  h += '</div></section>';
+
+  if (w) {
+    h += '<section><div class="section-head"><h2>Mit adj rájuk?</h2><span class="hint">melegvérűekre számolva</span></div><div class="kids">';
+    const ks = kids().length ? kids() : [{ name: 'Gyerekek', birth: '' }];
+    if (!kids().length) h += '<div class="hint">Add meg a családtagokat születési hónappal a Szabályok fülön, és minden gyereknek külön javaslatot kapsz.</div>';
+    for (const k of ks) {
+      const c = clothesFor(k, w, trip), age = ageText(k.birth);
+      h += '<div class="card"><div class="fam-name">' + esc(k.name) + (age ? ' <span class="hint">(' + age + ')</span>' : '') + '</div><ul class="ticks">' + c.list.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>';
+    }
+    h += '</div></section>';
+  }
+
+  let checked = [];
+  try { checked = JSON.parse(lsGet(bagKey(trip)) || '[]'); } catch {}
+  const base = bagBase(), extra = bagFor(w, trip);
+  const total = base.length + extra.length, done = base.filter(b => checked.includes(b.id)).length + extra.filter(x => checked.includes('x:' + x)).length;
+  const onList = new Set(S.items.filter(i => i.onList).map(i => i.name.toLowerCase()));
+  const bagRow = (key, name, buy) => '<div class="row"><button class="check' + (checked.includes(key) ? ' on' : '') + '" aria-pressed="' + checked.includes(key) + '" aria-label="Bepakolva: ' + esc(name) + '" data-act="bag-check" data-key="' + esc(key) + '"></button>' +
+    '<span class="grow' + (checked.includes(key) ? ' done' : '') + '">' + esc(name) + '</span>' +
+    (buy ? (onList.has(buyName(name)) ? '<span class="small">listán</span>' : '<button class="btn ghost sm" data-act="bag-buy" data-name="' + esc(name) + '">Fogyóban</button>') : '') + '</div>';
+  h += '<section><div class="section-head"><h2>Hátizsák</h2><span class="hint">' + done + '/' + total + ' bepakolva</span></div><div class="list">' +
+    '<div class="group-label">Alap</div>' + base.map(b => bagRow(b.id, b.name, b.buy)).join('') +
+    (extra.length ? '<div class="group-label">Erre a kiruccanásra</div>' + extra.map(x => bagRow('x:' + x, x, false)).join('') : '') +
+    '</div><div class="hint">A „Fogyóban” gomb felteszi a bevásárlólistára.</div>' +
+    '<details class="fam-rules"><summary>Nasi ötletek</summary><div class="card" style="border:0"><div class="chips">' + SNACK_IDEAS.map(x => '<span class="pick">' + esc(x) + '</span>').join('') + '</div>' +
+    '<div class="hint">Majának a kerek, kemény falatokat (szőlő, koktélparadicsom) mindig vágd fel; egész olajos mag még nem neki való.</div></div></details></section>';
+
+  const ranked = rankPlaces(w, trip);
+  const placeCard = (r, top) => '<div class="' + (top ? 'card place top' : 'row place') + '"><div class="grow"><div class="nm">' + esc(r.p.name) + '</div>' +
+    (r.why.length ? '<div class="small">' + esc(r.why.join(' · ')) + '</div>' : '') +
+    (r.warn.length ? '<div class="small warn-text">' + esc(r.warn.join(' · ')) + '</div>' : '') + '</div>' +
+    '<button class="btn ' + (top ? '' : 'ghost ') + 'sm" data-act="visit" data-id="' + esc(r.p.id) + '">Itt voltunk</button></div>';
+  h += '<section><div class="section-head"><h2>Hova menjünk?</h2><span class="hint">időjárás, napszak és változatosság alapján</span></div>' +
+    '<div class="places-top">' + ranked.slice(0, 3).map(r => placeCard(r, true)).join('') + '</div>' +
+    (ranked.length > 3 ? '<details class="fam-rules"><summary>További helyek</summary><div class="list">' + ranked.slice(3).map(r => placeCard(r, false)).join('') + '</div></details>' : '');
+  const known = new Set(places().map(p => slug(p.name)));
+  const ideas = PLACE_IDEAS.filter(i => !known.has(slug(i.name)));
+  if (ideas.length) h += '<details class="fam-rules"><summary>Új helyek ötletnek</summary><div class="list">' + ideas.map(i =>
+    '<div class="row"><div class="grow"><div>' + esc(i.name) + '</div><div class="small">' + esc(i.note) + '</div></div><button class="btn ghost sm" data-act="add-idea" data-name="' + esc(i.name) + '">Felveszem</button></div>').join('') + '</div></details>';
+  h += '</section>';
+  return h;
+}
+const buyName = n => n.replace(/\s*×\d+$/, '').toLowerCase();
+function addToShopping(name) {
+  const ex = S.items.find(i => i.name.toLowerCase() === name.toLowerCase());
+  if (ex) saveItem({ ...ex, onList: true, addedAt: Date.now() });
+  else saveItem({ id: rid(), name, store: '', onList: true, addedAt: Date.now(), bought: [] });
+}
+function logVisit(place) {
+  const ts = Date.now(), k = dayKey(ts);
+  const cur = S.logs[k] || { date: k, entries: [] };
+  const entry = { id: rid(), chore: 'place-' + place.id, name: 'Játszótér: ' + place.name, t: ts };
+  S.logs = { ...S.logs, [k]: { date: k, entries: [...cur.entries, entry] } };
+  persist('logs/' + k, () => S.logs[k]);
+  return { k, id: entry.id };
 }
 function setHead(title, sub) {
   document.getElementById('page-title').textContent = title;
@@ -599,7 +888,7 @@ function render() {
   document.querySelectorAll('#view input[id], #view select[id]').forEach(el => { if (el.type !== 'number' || el === document.activeElement) keep[el.id] = el.value; });
   const act = document.activeElement && document.activeElement.id;
   const view = document.getElementById('view');
-  view.innerHTML = S.tab === 'bolt' ? viewBolt() : S.tab === 'naplo' ? viewNaplo() : S.tab === 'szabaly' ? viewSzabaly() : viewMa();
+  view.innerHTML = S.tab === 'bolt' ? viewBolt() : S.tab === 'jatszo' ? viewJatszo() : S.tab === 'naplo' ? viewNaplo() : S.tab === 'szabaly' ? viewSzabaly() : viewMa();
   for (const id in keep) { if (id === 'rename-input' && S.focusRename) continue; const el = document.getElementById(id); if (el && el.tagName === 'INPUT' && el.type !== 'date' && el.type !== 'time') el.value = keep[id]; }
   if (act) { const el = document.getElementById(act); if (el) el.focus(); }
   const ca = document.getElementById('copy-area'); if (ca && !act) ca.select();
@@ -660,6 +949,33 @@ document.addEventListener('click', e => {
     saveConfig({ family: { ...prev, [key]: list } });
     toast(gone.name + ' eltávolítva. A korábbi bejegyzések megmaradnak.', () => saveConfig({ family: prev }));
   }
+  if (a === 'trip-bike') S.trip = { ...S.trip, bike: !S.trip.bike };
+  if (a === 'bag-check') {
+    const key = bagKey(S.trip); let list = [];
+    try { list = JSON.parse(lsGet(key) || '[]'); } catch {}
+    const k = el.dataset.key;
+    lsSet(key, JSON.stringify(list.includes(k) ? list.filter(x => x !== k) : [...list, k]));
+  }
+  if (a === 'bag-buy') { const name = el.dataset.name.replace(/\s*×\d+$/, ''); addToShopping(name); toast(name + ' felkerült a bevásárlólistára.'); }
+  if (a === 'visit') {
+    const p = places().find(x => x.id === id);
+    if (p) { const r = logVisit(p); toast(p.name + ' rögzítve.', () => removeEntry(r.k, r.id)); }
+  }
+  if (a === 'add-idea') {
+    const idea = PLACE_IDEAS.find(i => i.name === el.dataset.name);
+    if (idea) { const list = places(); saveConfig({ places: [...list, { id: freshId(idea.name, list), name: idea.name, tags: idea.tags.slice() }] }); toast(idea.name + ' felvéve a helyek közé.'); }
+  }
+  if (a === 'toggle-ptag') {
+    const list = places().map(p => p.id !== id ? p : { ...p, tags: (p.tags || []).includes(el.dataset.tag) ? p.tags.filter(t => t !== el.dataset.tag) : [...(p.tags || []), el.dataset.tag] });
+    saveConfig({ places: list });
+  }
+  if (a === 'del-place' || a === 'del-bag') {
+    const isPlace = a === 'del-place', prev = isPlace ? places() : bagBase();
+    const gone = prev.find(x => x.id === id); if (!gone) return;
+    saveConfig({ [isPlace ? 'places' : 'bag']: prev.filter(x => x.id !== id) });
+    toast(gone.name + ' törölve.', () => saveConfig({ [isPlace ? 'places' : 'bag']: prev }));
+  }
+  if (a === 'toggle-buy') saveConfig({ bag: bagBase().map(b => b.id === id ? { ...b, buy: !b.buy } : b) });
   if (a === 'edit') { S.editing = { kind: el.dataset.kind, key: el.dataset.key }; S.focusRename = true; S.confirmDel = null; }
   if (a === 'cancel-edit') S.editing = null;
   if (a === 'ask-del') S.confirmDel = id;
@@ -669,6 +985,13 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('change', e => {
   const el = e.target.closest('[data-change]'); if (!el) return;
+  if (el.dataset.change === 'trip-start') { S.trip = { ...S.trip, start: +el.value }; render(); return; }
+  if (el.dataset.change === 'trip-dur') { S.trip = { ...S.trip, dur: +el.value }; render(); return; }
+  if (el.dataset.change === 'person-birth') {
+    const fam = family();
+    saveConfig({ family: { ...fam, people: fam.people.map(p => p.id === el.dataset.id ? { ...p, birth: el.value || '' } : p) } });
+    render(); return;
+  }
   const c = findTask(el.dataset.id); if (!c) return;
   if (el.dataset.change === 'mode') saveChore({ ...c, rule: { ...(c.rule || {}), mode: el.value, every: c.rule?.every || 7, days: c.rule?.days || [] } });
   if (el.dataset.change === 'every') { const n = Math.min(365, Math.max(1, parseInt(el.value, 10) || 1)); saveChore({ ...c, rule: { ...c.rule, mode: 'every', every: n } }); }
@@ -697,13 +1020,20 @@ document.addEventListener('submit', e => {
     const name = inp.value.trim(); if (!name) return;
     const f = family();
     if (f[key].some(x => slug(x.name) === slug(name))) toast(name + ' már szerepel a listán.');
-    else saveConfig({ family: { ...f, [key]: [...f[key], { id: freshId(name, f[key]), name }] } });
+    else {
+      // The id comes from the name, so re-adding someone under the same name reconnects their earlier entries.
+      const item = { id: freshId(name, f[key]), name };
+      if (key === 'people') { const b = document.getElementById('person-birth'); if (b.value) item.birth = b.value; b.value = ''; }
+      saveConfig({ family: { ...f, [key]: [...f[key], item] } });
+    }
     inp.value = '';
   }
   if (kind === 'rename') {
     const name = document.getElementById('rename-input').value.trim(); if (!name) return;
     const k = f.dataset.kind, key = f.dataset.key;
     if (k === 'chore') { const c = S.chores.find(x => x.id === key); if (c) saveChore({ ...c, name }); }
+    if (k === 'place') saveConfig({ places: places().map(p => p.id === key ? { ...p, name } : p) });
+    if (k === 'bag') saveConfig({ bag: bagBase().map(b => b.id === key ? { ...b, name } : b) });
     if (k === 'store') {
       const stores = (S.config.stores || []).slice(); const old = stores[+key];
       if (old !== name && stores.includes(name)) { toast(name + ' már szerepel a listán.'); return; }
@@ -717,6 +1047,14 @@ document.addEventListener('submit', e => {
       saveConfig({ family: { ...fam, [k]: fam[k].map(x => x.id === key ? { ...x, name } : x) } });
     }
     S.editing = null;
+  }
+  if (kind === 'add-place' || kind === 'add-bag') {
+    const isPlace = kind === 'add-place';
+    const inp = document.getElementById(isPlace ? 'place-name' : 'bag-name'); const name = inp.value.trim(); if (!name) return;
+    const list = isPlace ? places() : bagBase();
+    if (list.some(x => slug(x.name) === slug(name))) toast(name + ' már szerepel a listán.');
+    else saveConfig({ [isPlace ? 'places' : 'bag']: [...list, isPlace ? { id: freshId(name, list), name, tags: [] } : { id: freshId(name, list), name }] });
+    inp.value = '';
   }
   if (kind === 'add-store') {
     const inp = document.getElementById('store-name'); const name = inp.value.trim(); if (!name) return;
