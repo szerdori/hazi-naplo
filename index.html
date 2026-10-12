@@ -111,7 +111,7 @@ textarea { width: 100%; min-height: 140px; border: 1px solid var(--line); border
 
 /* bottom nav */
 nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
-nav.tabs .in { max-width: 640px; margin: 0 auto; display: grid; grid-template-columns: repeat(5, 1fr); }
+nav.tabs .in { max-width: 640px; margin: 0 auto; display: grid; grid-template-columns: repeat(6, 1fr); }
 nav.tabs button { border: 0; background: transparent; padding: 10px 2px 12px; font-size: 12px; font-weight: 600; color: var(--muted); display: grid; justify-items: center; gap: 3px; }
 nav.tabs button svg { width: 22px; height: 22px; }
 nav.tabs button[aria-current="page"] { color: var(--accent); }
@@ -205,6 +205,7 @@ svg.chart .ref { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 4 4; o
   <button data-act="tab" data-tab="bolt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1.2 11.2a1 1 0 0 1-1 .8H7.2a1 1 0 0 1-1-.8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>Bevásárlás</button>
   <button data-act="tab" data-tab="naplo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Napló</button>
   <button data-act="tab" data-tab="jatszo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="3"/><path d="M12 2v1M5 7H4M20 7h-1M7 3.5l.7.7M17 3.5l-.7.7"/><path d="M4 21l4-8h8l4 8"/><path d="M9 21v-4h6v4"/></svg>Játszótér</button>
+  <button data-act="tab" data-tab="majd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m3.5 6 1 1 2-2M3.5 12l1 1 2-2"/><circle cx="5" cy="18" r="1.2"/></svg>Majd</button>
   <button data-act="tab" data-tab="szabaly"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Szabályok</button>
 </div></nav>
 
@@ -240,7 +241,7 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 const S = {
   tab: lsGet('tab') || 'ma',
   chores: [], logs: {}, items: [], config: { noShopDays: [], stores: [] },
-  loaded: { chores: false, logs: false, items: false, config: false },
+  loaded: { chores: false, logs: false, items: false, config: false, todos: false }, todos: [], todoDraft: null, todoTime: 'any', editTodo: null,
   db: null, dbMissing: false, flash: null, confirmDel: null, copyText: null, copyTitle: '', famOpen: new Set(),
 };
 
@@ -277,6 +278,7 @@ function connect(db) {
   const since = dayKey(addDays(Date.now(), -120));
   on(db.collection('logs').where('date', '>=', since).onSnapshot(s => { const o = {}; s.docs.forEach(d => o[d.id] = d.data()); S.logs = o; S.loaded.logs = true; render(); }, fail));
   on(db.collection('items').onSnapshot(s => { S.items = s.docs.map(d => ({ id: d.id, ...d.data() })); S.loaded.items = true; render(); }, fail));
+  on(db.collection('todos').onSnapshot(s => { S.todos = s.docs.map(d => ({ id: d.id, ...d.data() })); S.loaded.todos = true; render(); }, fail));
   on(db.doc('config/main').onSnapshot(s => { S.config = Object.assign({ noShopDays: [], stores: [] }, s.exists ? s.data() : {}); S.loaded.config = true; render(); }, fail));
 }
 function viewAuth() {
@@ -293,6 +295,7 @@ function importData(text) {
   (d.chores || []).forEach(c => { const { id, ...b } = c; if (id) { persist('chores/' + id, () => b); n++; } });
   Object.keys(d.logs || {}).forEach(k => { persist('logs/' + k, () => d.logs[k]); n++; });
   (d.items || []).forEach(i => { const { id, ...b } = i; if (id) { persist('items/' + id, () => b); n++; } });
+  (d.todos || []).forEach(i => { const { id, ...b } = i; if (id) { persist('todos/' + id, () => b); n++; } });
   if (d.config) { persist('config/main', () => d.config); n++; }
   toast(n + ' tétel importálva.');
 }
@@ -464,6 +467,7 @@ function workEvents() {
     }
     out.push({ t: e.t, cat, label, by: e.by || '' });
   }
+  for (const td of S.todos) if (td.doneAt) out.push({ t: td.doneAt, cat: 'Majd egyszer', label: td.title, by: td.doneBy || '' });
   for (const it of S.items) for (const b of (it.bought || [])) out.push({ t: b.t, cat: 'Bevásárlás', label: 'Bevásárolt tétel', by: b.by || '' });
   return out;
 }
@@ -1015,6 +1019,73 @@ function logVisit(place) {
   persist('logs/' + k, () => S.logs[k]);
   return { k, id: entry.id };
 }
+// ---------- "Majd egyszer": one-off tasks, shown only on their own tab, never pushed elsewhere ----------
+const EFFORTS = [['15p', '15 perc', 15], ['1o', '1 óra', 60], ['fel', 'fél nap', 240]];
+const TIME_FILTERS = [['15p', '15 percem van', 15], ['1o', 'Kb. 1 órám van', 60], ['fel', 'Fél napom van', 240], ['any', 'Mindegy', Infinity]];
+const effortMin = e => (EFFORTS.find(x => x[0] === e) || EFFORTS[1])[2];
+const newDraft = () => ({ urgent: false, impact: false, effort: '1o' });
+function todoScore(td) {
+  let s = (td.urgent ? 2 : 0) + (td.impact ? 2 : 0) + (td.effort === '15p' ? 0.5 : 0);
+  if (td.deadline) {
+    const left = diffDays(new Date(td.deadline + 'T00:00').getTime(), Date.now());
+    s += left < 0 ? 5 : left <= 3 ? 4 : left <= 7 ? 3 : left <= 14 ? 2 : left <= 30 ? 1 : 0;
+  }
+  return s;
+}
+function deadlineText(d) {
+  const left = diffDays(new Date(d + 'T00:00').getTime(), Date.now());
+  return left < 0 ? 'határidő lejárt' : left === 0 ? 'határidő ma' : left === 1 ? 'határidő holnap' : left + ' nap a határidőig';
+}
+function todoToggles(prefix, t) {
+  const chip = (act, on, label, val) => '<button type="button" class="pick' + (on ? ' on' : '') + '" aria-pressed="' + on + '" data-act="' + prefix + act + '"' + (val ? ' data-val="' + val + '"' : '') + '>' + label + '</button>';
+  return '<div class="chips">' + chip('urgent', t.urgent, 'Sürgős') + chip('impact', t.impact, 'Nagy haszna van') + '</div>' +
+    '<div class="chips">' + EFFORTS.map(([k, l]) => chip('effort', t.effort === k, l, k)).join('') + '</div>';
+}
+function todoMeta(td) {
+  const bits = [];
+  if (td.urgent) bits.push('sürgős'); if (td.impact) bits.push('nagy haszon');
+  bits.push((EFFORTS.find(x => x[0] === td.effort) || EFFORTS[1])[1]);
+  if (td.deadline) bits.push(deadlineText(td.deadline));
+  return bits.join(' · ');
+}
+function todoRow(td) {
+  if (S.editTodo === td.id) {
+    return '<div class="rule-row">' + renameForm('todo', td.id, td.title) + todoToggles('et-', td) +
+      '<label class="field">Határidő<input type="date" id="todo-deadline-' + esc(td.id) + '" data-change="todo-deadline" data-id="' + esc(td.id) + '" value="' + esc(td.deadline || '') + '"></label>' +
+      '<div class="inline"><button class="btn ghost sm" data-act="todo-del" data-id="' + esc(td.id) + '">Törlés</button><button class="btn ghost sm" data-act="cancel-edit">Bezárás</button></div></div>';
+  }
+  const late = td.deadline && diffDays(new Date(td.deadline + 'T00:00').getTime(), Date.now()) <= 3;
+  return '<div class="row"><button class="check" aria-label="Kész: ' + esc(td.title) + '" data-act="todo-done" data-id="' + esc(td.id) + '"></button>' +
+    '<div class="grow"><div>' + esc(td.title) + '</div><div class="small' + (late ? ' warn-text' : '') + '">' + esc(todoMeta(td)) + '</div></div>' +
+    '<button class="x edit" aria-label="' + esc(td.title) + ' szerkesztése" data-act="todo-edit" data-id="' + esc(td.id) + '">' + PENCIL + '</button></div>';
+}
+function viewMajd() {
+  setHead('Majd egyszer', 'Ami ráér. Akkor nézz ide, amikor van rá kedved és energiád.');
+  if (!S.todoDraft) S.todoDraft = newDraft();
+  const open = S.todos.filter(t => !t.doneAt).sort((a, b) => todoScore(b) - todoScore(a) || (a.createdAt || 0) - (b.createdAt || 0));
+  const done = S.todos.filter(t => t.doneAt).sort((a, b) => b.doneAt - a.doneAt);
+  const lim = (TIME_FILTERS.find(f => f[0] === S.todoTime) || TIME_FILTERS[3])[2];
+  const fits = open.filter(t => effortMin(t.effort) <= lim);
+  let h = dbBanner();
+  h += '<section><form class="card" data-form="add-todo"><div class="inline"><input id="todo-title" placeholder="Pl. gardróbrendezés" required aria-label="Mit kéne majd megcsinálni?"><button class="btn" type="submit">Hozzáad</button></div>' +
+    todoToggles('dt-', S.todoDraft) +
+    '<label class="field">Határidő (nem kötelező)<input type="date" id="todo-deadline" data-change="draft-deadline" value="' + esc(S.todoDraft.deadline || '') + '"></label></form></section>';
+  if (open.length) {
+    h += '<section><div class="section-head"><h2>Ha van kedved</h2></div><div class="chips">' +
+      TIME_FILTERS.map(([k, l]) => '<button class="pick' + (S.todoTime === k ? ' on' : '') + '" aria-pressed="' + (S.todoTime === k) + '" data-act="todo-time" data-val="' + k + '">' + l + '</button>').join('') + '</div>' +
+      '<div class="list">' + (fits.length ? fits.slice(0, 3).map(todoRow).join('') : '<div class="empty">Erre az időre most nincs a listán semmi. Pihenj nyugodtan.</div>') + '</div></section>';
+    const rest = open.filter(t => !fits.slice(0, 3).includes(t));
+    if (rest.length) h += '<details class="fam-rules" data-person="todo-all"' + (S.famOpen.has('todo-all') ? ' open' : '') + '><summary>Összes többi (' + rest.length + ')</summary><div class="list">' + rest.map(todoRow).join('') + '</div></details>';
+  } else h += '<section><div class="list"><div class="empty">A lista üres. Ide írhatod, ami nem sürgős, de egyszer meg kéne csinálni, hogy ne kelljen fejben tartanod.</div></div></section>';
+  if (done.length) h += '<details class="fam-rules" data-person="todo-done"' + (S.famOpen.has('todo-done') ? ' open' : '') + '><summary>Kipipálva (' + done.length + ')</summary><div class="list">' +
+    done.map(td => '<div class="row"><button class="check on" aria-label="Visszaállítás: ' + esc(td.title) + '" data-act="todo-undone" data-id="' + esc(td.id) + '"></button><div class="grow done">' + esc(td.title) + '</div><span class="small">' + relDay(td.doneAt) + '</span></div>').join('') + '</div></details>';
+  if (S.todos.length) h += '<section><button class="btn ghost sm" data-act="todo-copy" style="justify-self:start">Lista másolása</button>' + (S.copyText != null && S.copyTitle === 'todos' ? copyBox() : '') + '</section>';
+  return h;
+}
+function saveTodo(td) {
+  if (S.todos.some(x => x.id === td.id)) S.todos = S.todos.map(x => x.id === td.id ? td : x); else S.todos = [...S.todos, td];
+  persist('todos/' + td.id, () => { const cur = S.todos.find(x => x.id === td.id); if (!cur) return null; const { id: _, ...b } = cur; return b; });
+}
 function setHead(title, sub) {
   document.getElementById('page-title').textContent = title;
   document.getElementById('page-sub').textContent = sub;
@@ -1036,7 +1107,7 @@ function render() {
   document.querySelectorAll('#view input[id], #view select[id]').forEach(el => { if (el.type !== 'number' || el === document.activeElement) keep[el.id] = el.value; });
   const act = document.activeElement && document.activeElement.id;
   const view = document.getElementById('view');
-  view.innerHTML = S.tab === 'bolt' ? viewBolt() : S.tab === 'jatszo' ? viewJatszo() : S.tab === 'naplo' ? viewNaplo() : S.tab === 'szabaly' ? viewSzabaly() : viewMa();
+  view.innerHTML = S.tab === 'bolt' ? viewBolt() : S.tab === 'jatszo' ? viewJatszo() : S.tab === 'majd' ? viewMajd() : S.tab === 'naplo' ? viewNaplo() : S.tab === 'szabaly' ? viewSzabaly() : viewMa();
   for (const id in keep) { if (id === 'rename-input' && S.focusRename) continue; const el = document.getElementById(id); if (el && el.tagName === 'INPUT' && el.type !== 'date' && el.type !== 'time') el.value = keep[id]; }
   if (act) { const el = document.getElementById(act); if (el) el.focus(); }
   const ca = document.getElementById('copy-area'); if (ca && !act) ca.select();
@@ -1080,7 +1151,7 @@ document.addEventListener('click', e => {
         .map(g => '\n' + (g || 'Bármelyik bolt') + ':\n' + groups[g].map(n => '- ' + n).join('\n')).join('\n');
     copy(text, 'list'); return;
   }
-  if (a === 'export') { copy(JSON.stringify({ exportedAt: new Date().toISOString(), chores: S.chores, logs: S.logs, items: S.items, config: S.config }, null, 2), 'export'); return; }
+  if (a === 'export') { copy(JSON.stringify({ exportedAt: new Date().toISOString(), chores: S.chores, logs: S.logs, items: S.items, todos: S.todos, config: S.config }, null, 2), 'export'); return; }
   if (a === 'copy-close') S.copyText = null;
   if (a === 'sign-in') { window.HaziAuth?.signIn(); return; }
   if (a === 'sign-out') { window.HaziAuth?.signOut(); return; }
@@ -1098,6 +1169,29 @@ document.addEventListener('click', e => {
     toast(gone.name + ' eltávolítva. A korábbi bejegyzések megmaradnak.', () => saveConfig({ family: prev }));
   }
   if (a === 'trip-bike') S.trip = { ...S.trip, bike: !S.trip.bike };
+  if (a === 'dt-urgent' || a === 'dt-impact') { const k = a.slice(3); S.todoDraft = { ...S.todoDraft, [k]: !S.todoDraft[k] }; }
+  if (a === 'dt-effort') S.todoDraft = { ...S.todoDraft, effort: el.dataset.val };
+  if (a === 'et-urgent' || a === 'et-impact' || a === 'et-effort') {
+    const td = S.todos.find(x => x.id === S.editTodo);
+    if (td) { const k = a.slice(3); saveTodo(k === 'effort' ? { ...td, effort: el.dataset.val } : { ...td, [k]: !td[k] }); }
+  }
+  if (a === 'todo-time') S.todoTime = el.dataset.val;
+  if (a === 'todo-edit') { S.editTodo = id; S.editing = { kind: 'todo', key: id }; }
+  if (a === 'todo-done') {
+    const td = S.todos.find(x => x.id === id);
+    if (td) { saveTodo({ ...td, doneAt: Date.now(), doneBy: S.auth.email || '' }); toast('Kész: ' + td.title, () => saveTodo(td)); }
+  }
+  if (a === 'todo-undone') { const td = S.todos.find(x => x.id === id); if (td) { const { doneAt, doneBy, ...rest } = td; saveTodo(rest); } }
+  if (a === 'todo-del') {
+    const td = S.todos.find(x => x.id === id);
+    if (td) { S.todos = S.todos.filter(x => x.id !== id); persist('todos/' + id, () => null); S.editTodo = null; S.editing = null; toast(td.title + ' törölve.', () => saveTodo(td)); }
+  }
+  if (a === 'todo-copy') {
+    const open = S.todos.filter(t => !t.doneAt).sort((x, y) => todoScore(y) - todoScore(x));
+    copy('Majd egyszer lista (' + longDate(Date.now()) + ')\n\n' + open.map(t => '- ' + t.title + ' (' + todoMeta(t) + ')').join('\n') +
+      '\n\nKipipálva: ' + S.todos.filter(t => t.doneAt).length, 'todos');
+    return;
+  }
   if (a === 'bag-check') {
     const key = bagKey(S.trip); let list = [];
     try { list = JSON.parse(lsGet(key) || '[]'); } catch {}
@@ -1125,7 +1219,7 @@ document.addEventListener('click', e => {
   }
   if (a === 'toggle-buy') saveConfig({ bag: bagBase().map(b => b.id === id ? { ...b, buy: !b.buy } : b) });
   if (a === 'edit') { S.editing = { kind: el.dataset.kind, key: el.dataset.key }; S.focusRename = true; S.confirmDel = null; }
-  if (a === 'cancel-edit') S.editing = null;
+  if (a === 'cancel-edit') { S.editing = null; S.editTodo = null; }
   if (a === 'ask-del') S.confirmDel = id;
   if (a === 'cancel-del') S.confirmDel = null;
   if (a === 'del-chore') { const c = S.chores.find(x => x.id === id); deleteChore(id); S.confirmDel = null; if (c) toast(c.name + ' törölve.', () => saveChore(c)); }
@@ -1134,6 +1228,8 @@ document.addEventListener('click', e => {
 document.addEventListener('change', e => {
   const el = e.target.closest('[data-change]'); if (!el) return;
   if (el.dataset.change === 'trip-start') { S.trip = { ...S.trip, start: +el.value }; render(); return; }
+  if (el.dataset.change === 'draft-deadline') { S.todoDraft = { ...S.todoDraft, deadline: el.value }; return; }
+  if (el.dataset.change === 'todo-deadline') { const td = S.todos.find(x => x.id === el.dataset.id); if (td) saveTodo({ ...td, deadline: el.value || '' }); render(); return; }
   if (el.dataset.change === 'trip-dur') { S.trip = { ...S.trip, dur: +el.value }; render(); return; }
   if (el.dataset.change === 'person-birth') {
     const fam = family();
@@ -1180,6 +1276,7 @@ document.addEventListener('submit', e => {
     const name = document.getElementById('rename-input').value.trim(); if (!name) return;
     const k = f.dataset.kind, key = f.dataset.key;
     if (k === 'chore') { const c = S.chores.find(x => x.id === key); if (c) saveChore({ ...c, name }); }
+    if (k === 'todo') { const td = S.todos.find(x => x.id === key); if (td) saveTodo({ ...td, title: name }); S.editTodo = null; }
     if (k === 'place') saveConfig({ places: places().map(p => p.id === key ? { ...p, name } : p) });
     if (k === 'bag') saveConfig({ bag: bagBase().map(b => b.id === key ? { ...b, name } : b) });
     if (k === 'store') {
@@ -1195,6 +1292,13 @@ document.addEventListener('submit', e => {
       saveConfig({ family: { ...fam, [k]: fam[k].map(x => x.id === key ? { ...x, name } : x) } });
     }
     S.editing = null;
+  }
+  if (kind === 'add-todo') {
+    const inp = document.getElementById('todo-title'), dl = document.getElementById('todo-deadline');
+    const title = inp.value.trim(); if (!title) return;
+    saveTodo({ id: rid(), title, urgent: S.todoDraft.urgent, impact: S.todoDraft.impact, effort: S.todoDraft.effort, deadline: dl.value || '', createdAt: Date.now(), by: S.auth.email || '' });
+    inp.value = ''; dl.value = ''; S.todoDraft = newDraft();
+    toast('Felírva. Most már nem kell fejben tartanod.');
   }
   if (kind === 'add-place' || kind === 'add-bag') {
     const isPlace = kind === 'add-place';
