@@ -111,8 +111,8 @@ textarea { width: 100%; min-height: 140px; border: 1px solid var(--line); border
 
 /* bottom nav */
 nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 10; background: var(--surface); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
-nav.tabs .in { max-width: 640px; margin: 0 auto; display: grid; grid-template-columns: repeat(6, 1fr); }
-nav.tabs button { border: 0; background: transparent; padding: 10px 2px 12px; font-size: 12px; font-weight: 600; color: var(--muted); display: grid; justify-items: center; gap: 3px; }
+nav.tabs .in { max-width: 640px; margin: 0 auto; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+nav.tabs button { border: 0; background: transparent; padding: 10px 1px 12px; font-size: 11px; letter-spacing: -0.01em; white-space: nowrap; min-width: 0; font-weight: 600; color: var(--muted); display: grid; justify-items: center; gap: 3px; }
 nav.tabs button svg { width: 22px; height: 22px; }
 nav.tabs button[aria-current="page"] { color: var(--accent); }
 
@@ -203,10 +203,10 @@ svg.chart .ref { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 4 4; o
 <nav class="tabs" aria-label="Fülek"><div class="in">
   <button data-act="tab" data-tab="ma"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></svg>Ma</button>
   <button data-act="tab" data-tab="bolt"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h14l-1.2 11.2a1 1 0 0 1-1 .8H7.2a1 1 0 0 1-1-.8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg>Bevásárlás</button>
-  <button data-act="tab" data-tab="naplo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Napló</button>
+  <button data-act="tab" data-tab="naplo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>Statisztika</button>
   <button data-act="tab" data-tab="jatszo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="7" r="3"/><path d="M12 2v1M5 7H4M20 7h-1M7 3.5l.7.7M17 3.5l-.7.7"/><path d="M4 21l4-8h8l4 8"/><path d="M9 21v-4h6v4"/></svg>Játszótér</button>
-  <button data-act="tab" data-tab="majd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m3.5 6 1 1 2-2M3.5 12l1 1 2-2"/><circle cx="5" cy="18" r="1.2"/></svg>Majd</button>
-  <button data-act="tab" data-tab="szabaly"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Szabályok</button>
+  <button data-act="tab" data-tab="majd"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h11M9 12h11M9 18h11"/><path d="m3.5 6 1 1 2-2M3.5 12l1 1 2-2"/><circle cx="5" cy="18" r="1.2"/></svg>ToDo</button>
+  <button data-act="tab" data-tab="szabaly"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Beállítások</button>
 </div></nav>
 
 <div id="toast-host"></div>
@@ -467,7 +467,7 @@ function workEvents() {
     }
     out.push({ t: e.t, cat, label, by: e.by || '' });
   }
-  for (const td of S.todos) if (td.doneAt) out.push({ t: td.doneAt, cat: 'Majd egyszer', label: td.title, by: td.doneBy || '' });
+  for (const td of S.todos) if (td.doneAt) out.push({ t: td.doneAt, cat: 'ToDo', label: td.title, by: td.doneBy || '' });
   for (const it of S.items) for (const b of (it.bought || [])) out.push({ t: b.t, cat: 'Bevásárlás', label: 'Bevásárolt tétel', by: b.by || '' });
   return out;
 }
@@ -583,7 +583,7 @@ function viewMa() {
     const list = chores.filter(x => groupOf(x.c) === g.id);
     if (!list.length && g.id !== 'haz') continue;
     h += '<section><div class="section-head"><h2>' + g.ma + '</h2><span class="hint">' + g.hint + '</span></div>';
-    if (!list.length) h += '<div class="list"><div class="empty">' + g.empty + ' A Szabályok fülön adhatsz hozzá.</div></div>';
+    if (!list.length) h += '<div class="list"><div class="empty">' + g.empty + ' A Beállítások fülön adhatsz hozzá.</div></div>';
     else h += '<div class="tiles">' + list.map(({ c, i }) =>
       '<button class="tile' + (S.flash === c.id ? ' flash' : '') + '" data-act="log" data-id="' + esc(c.id) + '">' +
         '<span class="nm">' + esc(c.name) + '</span>' +
@@ -592,7 +592,7 @@ function viewMa() {
       '</button>').join('') + '</div>';
     h += '</section>';
   }
-  if (!family().people.length) h += '<section><h2>Család</h2><div class="list"><div class="empty">Add meg a családtagokat a Szabályok fülön, és itt követheted a hajmosást, körömvágást és a többit.</div></div></section>';
+  if (!family().people.length) h += '<section><h2>Család</h2><div class="list"><div class="empty">Add meg a családtagokat a Beállítások fülön, és itt követheted a hajmosást, körömvágást és a többit.</div></div></section>';
   if (fam.length) {
     h += '<section><div class="section-head"><h2>Család</h2><span class="hint">Koppints, ha megvolt</span></div><div class="fam">';
     for (const p of family().people) {
@@ -602,7 +602,7 @@ function viewMa() {
     h += '</div></section>';
   }
   h += '<section><div class="section-head"><h2>Mai bejegyzések</h2><span class="hint">' + todays.length + ' db</span></div><div class="list">';
-  h += todays.length ? todays.map(e => entryRow(e)).join('') : '<div class="empty">Még semmi. Elfelejtettél valamit tegnapról? A Napló fülön pótolhatod.</div>';
+  h += todays.length ? todays.map(e => entryRow(e)).join('') : '<div class="empty">Még semmi. Elfelejtettél valamit tegnapról? A Statisztika fülön pótolhatod.</div>';
   h += '</div></section>';
   return h;
 }
@@ -619,7 +619,7 @@ function entryRow(e) {
     '<button class="x" aria-label="Bejegyzés törlése" data-act="del-entry" data-k="' + dayKey(e.t) + '" data-id="' + esc(e.id) + '">×</button></div>';
 }
 function viewNaplo() {
-  setHead('Napló', 'Mennyi munka megy el a háztartásra, és mit csináltál az elmúlt két hétben.');
+  setHead('Statisztika', 'Mennyi munka megy el a háztartásra, és mit csináltál az elmúlt két hétben.');
   const entries = allEntries();
   const now = new Date();
   const opts = GROUPS.map(g => {
@@ -711,7 +711,7 @@ function ruleRow(c, deletable) {
     (deletable ? editBtn('chore', c.id, c.name) + '<button class="x" aria-label="Törlés" data-act="ask-del" data-id="' + esc(c.id) + '">×</button>' : '') + '</div>' + extra + confirm + '</div>';
 }
 function viewSzabaly() {
-  setHead('Szabályok', 'Amit előre tudsz, azt itt adhatod meg. A szabály felülírja a megfigyelt mintát.');
+  setHead('Beállítások', 'Amit előre tudsz, azt itt adhatod meg. A szabály felülírja a megfigyelt mintát.');
   const no = S.config.noShopDays || [];
   const stores = S.config.stores || [];
   let h = dbBanner();
@@ -780,7 +780,7 @@ function viewSzabaly() {
 }
 // ---------- playground helper ----------
 const HOME = { lat: 47.4728, lon: 19.0436 }; // Budapest XI. kerület
-// Kids (name + birth month) live in the private database, set on the Szabályok tab, never in this public code.
+// Kids (name + birth month) live in the private database, set on the Beállítások tab, never in this public code.
 const WARM_BIAS = 2; // both kids run warm: dress them as if it were this many degrees warmer
 const PLACE_TAGS = [
   ['kozel', 'Közel van'], ['picik', 'Sok játék a piciknek'], ['bicikli', 'Jó biciklizni'], ['nagy', 'Nagy terület'],
@@ -967,7 +967,7 @@ function viewJatszo() {
   if (w) {
     h += '<section><div class="section-head"><h2>Mit adj rájuk?</h2><span class="hint">melegvérűekre számolva</span></div><div class="kids">';
     const ks = kids().length ? kids() : [{ name: 'Gyerekek', birth: '' }];
-    if (!kids().length) h += '<div class="hint">Add meg a családtagokat születési hónappal a Szabályok fülön, és minden gyereknek külön javaslatot kapsz.</div>';
+    if (!kids().length) h += '<div class="hint">Add meg a családtagokat születési hónappal a Beállítások fülön, és minden gyereknek külön javaslatot kapsz.</div>';
     for (const k of ks) {
       const c = clothesFor(k, w, trip), age = ageText(k.birth);
       h += '<div class="card"><div class="fam-name">' + esc(k.name) + (age ? ' <span class="hint">(' + age + ')</span>' : '') + '</div><ul class="ticks">' + c.list.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></div>';
@@ -1060,7 +1060,7 @@ function todoRow(td) {
     '<button class="x edit" aria-label="' + esc(td.title) + ' szerkesztése" data-act="todo-edit" data-id="' + esc(td.id) + '">' + PENCIL + '</button></div>';
 }
 function viewMajd() {
-  setHead('Majd egyszer', 'Ami ráér. Akkor nézz ide, amikor van rá kedved és energiád.');
+  setHead('ToDo', 'Ami ráér. Akkor nézz ide, amikor van rá kedved és energiád.');
   if (!S.todoDraft) S.todoDraft = newDraft();
   const open = S.todos.filter(t => !t.doneAt).sort((a, b) => todoScore(b) - todoScore(a) || (a.createdAt || 0) - (b.createdAt || 0));
   const done = S.todos.filter(t => t.doneAt).sort((a, b) => b.doneAt - a.doneAt);
@@ -1188,7 +1188,7 @@ document.addEventListener('click', e => {
   }
   if (a === 'todo-copy') {
     const open = S.todos.filter(t => !t.doneAt).sort((x, y) => todoScore(y) - todoScore(x));
-    copy('Majd egyszer lista (' + longDate(Date.now()) + ')\n\n' + open.map(t => '- ' + t.title + ' (' + todoMeta(t) + ')').join('\n') +
+    copy('ToDo lista (' + longDate(Date.now()) + ')\n\n' + open.map(t => '- ' + t.title + ' (' + todoMeta(t) + ')').join('\n') +
       '\n\nKipipálva: ' + S.todos.filter(t => t.doneAt).length, 'todos');
     return;
   }
