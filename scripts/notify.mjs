@@ -3,7 +3,7 @@
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
-import { budapestNow, shouldSend, buildMessage, buildMorning, slug, KINDS } from './notify-logic.mjs';
+import { budapestNow, shouldSend, buildMessage, buildMorning, withSuggestions, slug, KINDS } from './notify-logic.mjs';
 
 const SITE = process.env.SITE_URL || 'https://szerdori.github.io/hazi-naplo/';
 let account;
@@ -25,15 +25,22 @@ const loadShared = async () => shared ??= {
   items: (await db.collection('items').get()).docs.map(d => d.data()),
   todos: (await db.collection('todos').get()).docs.map(d => d.data()),
 };
+// Suggestions waiting in the ToDo tab that no notification has mentioned yet, per addressee.
+let pending = null;
+const loadPending = async () => pending ??= (await db.collection('suggestions').where('status', '==', 'new').get()).docs
+  .filter(d => d.data().announced !== true);
+const announced = new Set();
 
-const stats = { sent: 0, quiet: 0, notYet: 0, removed: 0, failed: 0 };
+const stats = { sent: 0, quiet: 0, notYet: 0, removed: 0, failed: 0, suggestions: 0 };
 for (const doc of subs) {
   const sub = doc.data();
   for (const kind of ['morning', 'evening']) {
     if (!shouldSend(sub, now, kind)) { stats.notYet++; continue; }
     const status = (await db.doc('status/' + slug(sub.email)).get()).data();
     const data = { ...(await loadShared()), status };
-    const msg = kind === 'morning' ? buildMorning(sub, now, data) : buildMessage(sub, now, data);
+    const mine = (await loadPending()).filter(d => !announced.has(d.id) && (!d.data().for || d.data().for === sub.email));
+    const base = kind === 'morning' ? buildMorning(sub, now, data) : buildMessage(sub, now, data);
+    const msg = withSuggestions(base, mine.map(d => d.data()));
     if (msg) {
       try {
         await fcm.send({
@@ -41,6 +48,7 @@ for (const doc of subs) {
           webpush: { notification: { title: msg.title, body: msg.body, icon: SITE + 'icon-192.png', badge: SITE + 'icon-192.png', tag: kind }, fcmOptions: { link: SITE } },
         });
         stats.sent++;
+        for (const d of mine) { announced.add(d.id); await d.ref.update({ announced: true }); stats.suggestions++; }
       } catch (e) {
         if (e.code === 'messaging/registration-token-not-registered' || e.code === 'messaging/invalid-registration-token') { await doc.ref.delete(); stats.removed++; break; }
         console.log('Küldési hiba:', e.code || 'ismeretlen'); stats.failed++; continue;
@@ -49,4 +57,4 @@ for (const doc of subs) {
     await doc.ref.update({ [KINDS[kind].last]: now.day });
   }
 }
-console.log(`Kész (${now.day}): ${stats.sent} elküldve, ${stats.quiet} csendben (nem volt mit mondani), ${stats.notYet} még nem esedékes, ${stats.removed} lejárt eszköz törölve, ${stats.failed} hiba.`);
+console.log(`Kész (${now.day}): ${stats.sent} elküldve, ${stats.quiet} csendben (nem volt mit mondani), ${stats.notYet} még nem esedékes, ${stats.removed} lejárt eszköz törölve, ${stats.failed} hiba, ${stats.suggestions} javaslat megemlítve.`);

@@ -90,3 +90,13 @@ export function buildMorning(sub, now, data) {
     body: d.text + '.' + (cap && d.n > cap ? ' Ez több, mint egy reális nap (kb. ' + cap + '), válogass nyugodtan, a többi ráér.' : ' Szép napot!'),
   };
 }
+
+// New suggestions from the daily e-mail and calendar review, not yet mentioned in any notification.
+// Adds one sentence to the message, or makes a message of its own when there was nothing else to say.
+export function withSuggestions(msg, suggestions = []) {
+  if (!suggestions.length) return msg;
+  const n = suggestions.length;
+  const text = (n === 1 ? 'Új javaslat a ToDo-ban: ' : n + ' új javaslat a ToDo-ban: ') +
+    suggestions.slice(0, 2).map(s => s.title).join(', ') + (n > 2 ? ' és még ' + (n - 2) : '') + '. Nézz rá, és igazítsd a határidőt, ha kell.';
+  return msg ? { title: msg.title, body: msg.body + ' ' + text } : { title: n === 1 ? 'Új javaslat a ToDo-ban' : n + ' új javaslat a ToDo-ban', body: text };
+}

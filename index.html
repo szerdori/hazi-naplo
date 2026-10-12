@@ -92,6 +92,7 @@ input:focus, select:focus { border-color: var(--accent); outline: none; }
 .btn { border: 0; background: var(--accent); color: var(--accent-ink); border-radius: 10px; padding: 10px 16px; font-weight: 600; min-height: 44px; }
 .btn.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
 .btn.danger { background: var(--late); color: var(--surface); }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; }
 .btn.sm { min-height: 36px; padding: 6px 12px; font-size: 14px; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .pick { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 7px 12px; font-size: 14px; }
@@ -244,7 +245,7 @@ const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
 const S = {
   tab: lsGet('tab') || 'ma',
   chores: [], logs: {}, items: [], config: { noShopDays: [], stores: [] },
-  loaded: { chores: false, logs: false, items: false, config: false, todos: false }, todos: [], push: [], pushSupported: null, todoDraft: null, todoTime: 'any', editTodo: null,
+  loaded: { chores: false, logs: false, items: false, config: false, todos: false }, todos: [], push: [], suggestions: [], pushSupported: null, todoDraft: null, todoTime: 'any', editTodo: null,
   db: null, dbMissing: false, flash: null, confirmDel: null, copyText: null, copyTitle: '', famOpen: new Set(),
 };
 
@@ -283,6 +284,7 @@ function connect(db) {
   on(db.collection('items').onSnapshot(s => { S.items = s.docs.map(d => ({ id: d.id, ...d.data() })); S.loaded.items = true; render(); }, fail));
   on(db.collection('todos').onSnapshot(s => { S.todos = s.docs.map(d => ({ id: d.id, ...d.data() })); S.loaded.todos = true; render(); }, fail));
   on(db.collection('push').onSnapshot(s => { S.push = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, () => {}));
+  on(db.collection('suggestions').where('status', '==', 'new').onSnapshot(s => { S.suggestions = s.docs.map(d => ({ id: d.id, ...d.data() })); render(); }, () => {}));
   if (window.HaziPush && S.pushSupported == null) window.HaziPush.supported().then(v => { S.pushSupported = v; render(); });
   on(db.doc('config/main').onSnapshot(s => { S.config = Object.assign({ noShopDays: [], stores: [] }, s.exists ? s.data() : {}); S.loaded.config = true; render(); }, fail));
 }
@@ -1073,6 +1075,7 @@ function viewMajd() {
   const lim = (TIME_FILTERS.find(f => f[0] === S.todoTime) || TIME_FILTERS[3])[2];
   const fits = open.filter(t => effortMin(t.effort) <= lim);
   let h = dbBanner();
+  h += suggestionsSection();
   h += '<section><form class="card" data-form="add-todo"><div class="inline"><input id="todo-title" placeholder="Pl. gardróbrendezés" required aria-label="Mit kéne majd megcsinálni?"><button class="btn" type="submit">Hozzáad</button></div>' +
     todoToggles('dt-', S.todoDraft) +
     '<label class="field">Határidő (nem kötelező)<input type="date" id="todo-deadline" data-change="draft-deadline" value="' + esc(S.todoDraft.deadline || '') + '"></label></form></section>';
@@ -1087,6 +1090,25 @@ function viewMajd() {
     done.map(td => '<div class="row"><button class="check on" aria-label="Visszaállítás: ' + esc(td.title) + '" data-act="todo-undone" data-id="' + esc(td.id) + '"></button><div class="grow done">' + esc(td.title) + '</div><span class="small">' + relDay(td.doneAt) + '</span></div>').join('') + '</div></details>';
   if (S.todos.length) h += '<section><button class="btn ghost sm" data-act="todo-copy" style="justify-self:start">Lista másolása</button>' + (S.copyText != null && S.copyTitle === 'todos' ? copyBox() : '') + '</section>';
   return h;
+}
+// Suggestions come from the daily Claude review of e-mails and calendars (scripts/javaslatok.ps1 writes them).
+// Nothing reaches the list until accepted; a dismissed one is kept as "dismissed" so it never comes back.
+function suggestionsSection() {
+  const list = (S.suggestions || []).slice().sort((a, b) => (a.deadline || '9999').localeCompare(b.deadline || '9999') || (a.createdAt || 0) - (b.createdAt || 0));
+  if (!list.length) return '';
+  return '<section><div class="section-head"><h2>Javaslatok</h2><span class="hint">levelekből és naptárból</span></div><div class="list">' +
+    list.map(s => '<div class="rule-row"><div><div>' + esc(s.title) + '</div><div class="small">' +
+      esc([s.source, s.deadline ? 'határidő: ' + s.deadline.slice(5).replace('-', '.') + '.' : ''].filter(Boolean).join(' · ')) + '</div>' +
+      (s.note ? '<div class="small">' + esc(s.note) + '</div>' : '') + '</div>' +
+      '<div class="inline"><button class="btn sm" data-act="sugg-accept" data-id="' + esc(s.id) + '">Felveszem</button>' +
+      '<button class="btn ghost sm" data-act="sugg-dismiss" data-id="' + esc(s.id) + '">Nem kell</button>' +
+      (/^https:\/\/(mail|calendar)\.google\.com\//.test(s.link || '') ? '<a class="btn ghost sm" href="' + esc(s.link) + '" target="_blank" rel="noopener">Megnyitás</a>' : '') +
+      '</div></div>').join('') + '</div></section>';
+}
+function setSuggestion(s, status) {
+  S.suggestions = (S.suggestions || []).filter(x => x.id !== s.id);
+  const { id, ...body } = s;
+  persist('suggestions/' + id, () => ({ ...body, status, decidedAt: Date.now(), decidedBy: S.auth.email || '' }));
 }
 function saveTodo(td) {
   if (S.todos.some(x => x.id === td.id)) S.todos = S.todos.map(x => x.id === td.id ? td : x); else S.todos = [...S.todos, td];
@@ -1252,6 +1274,19 @@ document.addEventListener('click', e => {
   if (a === 'et-urgent' || a === 'et-impact' || a === 'et-effort') {
     const td = S.todos.find(x => x.id === S.editTodo);
     if (td) { const k = a.slice(3); saveTodo(k === 'effort' ? { ...td, effort: el.dataset.val } : { ...td, [k]: !td[k] }); }
+  }
+  if (a === 'sugg-accept' || a === 'sugg-dismiss') {
+    const s = (S.suggestions || []).find(x => x.id === id);
+    if (s) {
+      if (a === 'sugg-accept') {
+        const td = { id: rid(), title: s.title, urgent: false, impact: false, effort: '1o', deadline: /^\d{4}-\d{2}-\d{2}$/.test(s.deadline || '') ? s.deadline : '', createdAt: Date.now(), by: S.auth.email || '', fromSuggestion: s.id };
+        saveTodo(td); setSuggestion(s, 'accepted');
+        toast('Felvéve a listára. A ceruzával módosíthatod.', () => { S.todos = S.todos.filter(x => x.id !== td.id); persist('todos/' + td.id, () => null); S.suggestions = [...S.suggestions, s]; const { id: _, ...b } = s; persist('suggestions/' + s.id, () => b); });
+      } else {
+        setSuggestion(s, 'dismissed');
+        toast('Elvetve.', () => { S.suggestions = [...S.suggestions, s]; const { id: _, ...b } = s; persist('suggestions/' + s.id, () => b); });
+      }
+    }
   }
   if (a === 'todo-time') S.todoTime = el.dataset.val;
   if (a === 'todo-edit') { S.editTodo = id; S.editing = { kind: 'todo', key: id }; }
