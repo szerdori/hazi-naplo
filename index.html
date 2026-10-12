@@ -186,6 +186,9 @@ svg.chart .bar.now { opacity: 1; }
 svg.chart g:hover .bar { opacity: .85; }
 svg.chart .ref { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 4 4; opacity: .6; }
 @media (prefers-reduced-motion: reduce) { .meter div { transition: none; } }
+.push-block { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.push-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.push-head select { min-height: 38px; padding: 6px 10px; }
 .login { display: grid; gap: 14px; justify-items: start; margin-top: 28px; }
 </style>
 </head>
@@ -1099,6 +1102,7 @@ function setHead(title, sub) {
 // plus status/<user>, which the app keeps up to date with what is due and the user's realistic day.
 function deviceId() { let id = lsGet('pushDevice'); if (!id) { id = 'd' + rid(); lsSet('pushDevice', id); } return id; }
 const myPush = () => (S.push || []).find(p => p.id === deviceId());
+const MORNING_TIMES = ['06:00', '06:30', '07:00', '07:30', '08:00', '08:30', '09:00', '09:30'];
 const PUSH_TIMES = ['17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30', '22:00'];
 function notifySection() {
   const mine = myPush();
@@ -1106,14 +1110,20 @@ function notifySection() {
   if (!self.FIREBASE_VAPID_KEY) body = '<div class="hint">Az értesítések még nincsenek beállítva (README, „Esti értesítés”).</div>';
   else if (S.pushSupported === false) body = '<div class="hint">Ez a böngésző nem tud értesítést fogadni. Androidon, Chrome-ból vagy a kezdőképernyőre kitett appból működik.</div>';
   else if (typeof Notification !== 'undefined' && Notification.permission === 'denied') body = '<div class="hint">Az értesítések le vannak tiltva ennél az appnál. Chrome-ban: ⋮ → Beállítások → Webhelybeállítások → Értesítések, ott engedélyezd, majd nyisd meg újra az appot.</div>';
-  else if (!mine) body = '<div class="hint">Este, a megadott időben szól, ha aznap még nem rögzítettél semmit, vagy ha maradt esedékes teendő. Ha nincs mit mondani, vagy már megvan a reális napod, nem jön értesítés.</div>' +
+  else if (!mine) body = '<div class="hint">Reggel a mára esedékes teendőkkel, este egy napi összefoglalóval és azzal, ami még esedékes. Ha nincs mit mondani, nem jön értesítés.</div>' +
     '<button class="btn" data-act="push-on" style="justify-self:start"' + (S.pushBusy ? ' disabled' : '') + '>' + (S.pushBusy ? 'Bekapcsolás…' : 'Bekapcsolás ezen a telefonon') + '</button>';
-  else body = '<div>Ezen a telefonon <b>be van kapcsolva</b>.</div>' +
-    '<label class="field">Időpont<select id="push-time" data-change="push-time">' + PUSH_TIMES.map(t => '<option' + (t === mine.time ? ' selected' : '') + '>' + t + '</option>').join('') + '</select></label>' +
-    '<div class="chips"><button class="pick' + (mine.nothing !== false ? ' on' : '') + '" aria-pressed="' + (mine.nothing !== false) + '" data-act="push-toggle" data-key="nothing">Ha ma még semmit nem rögzítettem</button>' +
-    '<button class="pick' + (mine.due !== false ? ' on' : '') + '" aria-pressed="' + (mine.due !== false) + '" data-act="push-toggle" data-key="due">Ha maradt esedékes teendő</button></div>' +
-    '<div class="inline"><button class="btn ghost sm" data-act="push-test">Próbaértesítés</button><button class="btn ghost sm" data-act="push-off">Kikapcsolás</button></div>';
-  return '<section><h2>Esti értesítés</h2><div class="card">' + body + '</div></section>';
+  else {
+    const chip = (key, label) => '<button class="pick' + (mine[key] !== false ? ' on' : '') + '" aria-pressed="' + (mine[key] !== false) + '" data-act="push-toggle" data-key="' + key + '">' + label + '</button>';
+    const timeSel = (id, field, list, def) => '<select id="' + id + '" data-change="push-time" data-field="' + field + '" aria-label="Időpont">' +
+      list.map(t => '<option' + (t === (mine[field] || def) ? ' selected' : '') + '>' + t + '</option>').join('') + '</select>';
+    body = '<div>Ezen a telefonon <b>be van kapcsolva</b>.</div>' +
+      '<div class="push-block"><div class="push-head">' + chip('morning', 'Reggel') + timeSel('push-morning-time', 'morningTime', MORNING_TIMES, '07:30') + '</div>' +
+      '<div class="small">A mára esedékes teendők. Ha nincs semmi esedékes, nem jön értesítés.</div></div>' +
+      '<div class="push-block"><div class="push-head">' + chip('evening', 'Este') + timeSel('push-time', 'time', PUSH_TIMES, '20:00') + '</div>' +
+      (mine.evening !== false ? '<div class="chips">' + chip('summary', 'Napi összefoglaló') + chip('nothing', 'Ha ma még semmit nem rögzítettem') + chip('due', 'Ha maradt esedékes teendő') + '</div>' : '') + '</div>' +
+      '<div class="inline"><button class="btn ghost sm" data-act="push-test">Próbaértesítés</button><button class="btn ghost sm" data-act="push-off">Kikapcsolás</button></div>';
+  }
+  return '<section><h2>Értesítések</h2><div class="card">' + body + '</div></section>';
 }
 function savePush(doc) {
   const id = deviceId();
@@ -1221,9 +1231,9 @@ document.addEventListener('click', e => {
         if (perm !== 'granted') { toast('Engedély nélkül nem tudok értesítést küldeni.'); return; }
         const token = await window.HaziPush.token();
         if (!token) throw new Error('no token');
-        savePush({ token, email: S.auth.email || '', time: '20:00', nothing: true, due: true, createdAt: Date.now(), lastSent: '' });
+        savePush({ token, email: S.auth.email || '', morning: true, morningTime: '07:30', evening: true, time: '20:00', summary: true, nothing: true, due: true, createdAt: Date.now(), lastSent: '', lastSentMorning: '' });
         S.lastStatusJson = null;
-        toast('Bekapcsolva. Este 20:00 körül szólok, ha van mit.');
+        toast('Bekapcsolva. Reggel 7:30-kor és este 20:00-kor szólok, ha van mit.');
       } catch { toast('Nem sikerült bekapcsolni. Próbáld újra kicsit később.'); }
       finally { S.pushBusy = false; render(); }
     })();
@@ -1298,7 +1308,7 @@ document.addEventListener('change', e => {
   if (el.dataset.change === 'trip-start') { S.trip = { ...S.trip, start: +el.value }; render(); return; }
   if (el.dataset.change === 'draft-deadline') { S.todoDraft = { ...S.todoDraft, deadline: el.value }; return; }
   if (el.dataset.change === 'todo-deadline') { const td = S.todos.find(x => x.id === el.dataset.id); if (td) saveTodo({ ...td, deadline: el.value || '' }); render(); return; }
-  if (el.dataset.change === 'push-time') { const m = myPush(); if (m) { const { id: _, ...doc } = m; savePush({ ...doc, time: el.value }); } render(); return; }
+  if (el.dataset.change === 'push-time') { const m = myPush(); if (m) { const { id: _, ...doc } = m; savePush({ ...doc, [el.dataset.field || 'time']: el.value }); } render(); return; }
   if (el.dataset.change === 'trip-dur') { S.trip = { ...S.trip, dur: +el.value }; render(); return; }
   if (el.dataset.change === 'person-birth') {
     const fam = family();

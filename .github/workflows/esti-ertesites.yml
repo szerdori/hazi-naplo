@@ -1,9 +1,10 @@
-# Esténként 20 percenként lefut, és elküldi azoknak a telefonoknak az értesítést, amelyeknél elérkezett a beállított időpont.
-# Az időpontokat (UTC) úgy választottuk, hogy télen és nyáron is lefedjék a 17:00–22:00 közötti budapesti időt.
+# Reggel és este 20 percenként lefut, és elküldi azoknak a telefonoknak az értesítést, amelyeknél elérkezett a beállított időpont.
+# Az időpontok UTC-ben vannak, és télen-nyáron is lefedik a budapesti 6:00–9:30 (reggel) és 17:00–22:00 (este) közötti időt.
 name: Esti értesítés
 
 on:
   schedule:
+    - cron: '*/20 4-8 * * *'
     - cron: '*/20 15-21 * * *'
   workflow_dispatch:
 

@@ -1,4 +1,4 @@
-// Pure decision logic for the evening notification, kept free of Firebase so it can be tested in a browser.
+// Pure decision logic for the morning and evening notifications, kept free of Firebase so it can be tested in a browser.
 
 export const slug = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
@@ -9,35 +9,84 @@ export function budapestNow(date = new Date()) {
   return { day: `${p.year}-${p.month}-${p.day}`, minutes: Number(p.hour) * 60 + Number(p.minute) };
 }
 
+// Each kind has its own switch, time and "already sent today" marker on the device's push document.
+export const KINDS = {
+  morning: { on: 'morning', time: 'morningTime', last: 'lastSentMorning', def: '07:30' },
+  evening: { on: 'evening', time: 'time', last: 'lastSent', def: '20:00' },
+};
+
 // Send once a day, at or after the chosen time; the window is wide because scheduled runs can start late.
-export function shouldSend(sub, now) {
-  if (!sub || !sub.token || sub.lastSent === now.day) return false;
-  const [h, m] = String(sub.time || '20:00').split(':').map(Number);
+export function shouldSend(sub, now, kind = 'evening') {
+  const k = KINDS[kind];
+  if (!sub || !sub.token || sub[k.on] === false || sub[k.last] === now.day) return false;
+  const [h, m] = String(sub[k.time] || k.def).split(':').map(Number);
   const at = h * 60 + m;
   return now.minutes >= at && now.minutes < at + 120;
 }
 
 // Work the user logged today: chores and visits, bought items, finished todos.
 // Entries from before "by" was recorded count for everyone, like in the app.
-export function todayCount(email, now, { logsDoc, items = [], todos = [] }) {
+export function todayWork(email, now, { logsDoc, items = [], todos = [] }) {
   const mine = by => !by || by === email;
   const sameDay = t => budapestNow(new Date(t)).day === now.day;
-  let n = (logsDoc?.entries || []).filter(e => mine(e.by)).length;
-  for (const it of items) for (const b of it.bought || []) if (mine(b.by) && sameDay(b.t)) n++;
-  for (const td of todos) if (td.doneAt && mine(td.doneBy) && sameDay(td.doneAt)) n++;
-  return n;
+  const labels = [];
+  for (const e of logsDoc?.entries || []) if (mine(e.by)) labels.push(e.name || 'egyéb');
+  let bought = 0;
+  for (const it of items) for (const b of it.bought || []) if (mine(b.by) && sameDay(b.t)) bought++;
+  for (const td of todos) if (td.doneAt && mine(td.doneBy) && sameDay(td.doneAt)) labels.push(td.title);
+  const tally = {};
+  for (const l of labels) tally[l] = (tally[l] || 0) + 1;
+  const list = Object.entries(tally).sort((a, b) => b[1] - a[1]);
+  if (bought) list.push([bought + ' tétel bevásárlás', 1]);
+  return { count: labels.length + bought, list };
+}
+export const todayCount = (email, now, data) => todayWork(email, now, data).count;
+
+const pick = (arr, day) => arr[[...day].reduce((a, c) => a + c.charCodeAt(0), 0) % arr.length];
+const PAT = {
+  over: ['Ma jóval többet csináltál a szokásosnál. Most már tényleg pihenj!', 'Ez rendkívüli nap volt. Holnap lehet lassabban.'],
+  enough: ['Megvolt a reális napod. Pihenj, megérdemled.', 'Mára bőven elég volt. Szép munka!', 'Ez igen, a mai adag megvolt.'],
+  some: ['Minden kis lépés számít.', 'Ma is sokat tettél a családért.', 'Ez is megvolt, szép munka.'],
+};
+const TITLE = { over: 'Hatalmas nap volt!', enough: 'Szép nap volt!', some: 'Esti összefoglaló' };
+
+function listText(list, max = 4) {
+  const shown = list.slice(0, max).map(([l, n]) => (n > 1 ? n + '× ' : '') + l);
+  return shown.join(', ') + (list.length > max ? ' és még ' + (list.length - max) + ' féle' : '');
+}
+function dueList(st, now) {
+  const due = (st?.tasks || []).filter(t => t.due <= now.day);
+  if (!due.length) return null;
+  return { n: due.length, text: due.slice(0, 3).map(t => t.label).join(', ') + (due.length > 3 ? ' és még ' + (due.length - 3) : '') };
 }
 
+// Evening: today's summary with a pat on the back, plus what is still due unless the day was already enough.
 // Returns { title, body } or null when there is nothing worth saying.
 export function buildMessage(sub, now, data) {
-  const count = todayCount(sub.email, now, data);
-  const parts = [];
-  if (sub.nothing !== false && count === 0) parts.push('Ma még nem rögzítettél semmit. Ha volt valami, egy koppintás az appban.');
-  const st = data.status;
-  if (sub.due !== false && st && !(st.cap && count >= st.cap)) {
-    const due = (st.tasks || []).filter(t => t.due <= now.day);
-    if (due.length) parts.push('Még esedékes: ' + due.slice(0, 3).map(t => t.label).join(', ') + (due.length > 3 ? ' és még ' + (due.length - 3) : '') + '. Ha ma nem fér bele, ráér holnap is.');
+  const { count, list } = todayWork(sub.email, now, data);
+  const st = data.status, cap = st?.cap || 0;
+  const level = cap && count >= cap * 1.5 ? 'over' : cap && count >= cap ? 'enough' : 'some';
+  const parts = []; let title = null;
+  if (count === 0) {
+    if (sub.nothing !== false) { title = 'MomAssistant'; parts.push('Ma még nem rögzítettél semmit. Ha volt valami, egy koppintás az appban.'); }
+  } else if (sub.summary !== false) {
+    title = TITLE[level];
+    parts.push('Ma ' + count + ' dolgot intéztél: ' + listText(list) + '. ' + pick(PAT[level], now.day));
   }
-  if (!parts.length) return null;
-  return { title: count === 0 ? 'MomAssistant' : 'Esti átnézés', body: parts.join(' ') };
+  if (sub.due !== false && level === 'some') {
+    const d = dueList(st, now);
+    if (d) { parts.push('Még esedékes: ' + d.text + '. Ha ma nem fér bele, ráér holnap is.'); title = title || 'Esti átnézés'; }
+  }
+  return parts.length ? { title, body: parts.join(' ') } : null;
+}
+
+// Morning: what is due today. Quiet when nothing is due.
+export function buildMorning(sub, now, data) {
+  const d = dueList(data.status, now);
+  if (!d) return null;
+  const cap = data.status?.cap || 0;
+  return {
+    title: 'Mára esedékes: ' + d.n,
+    body: d.text + '.' + (cap && d.n > cap ? ' Ez több, mint egy reális nap (kb. ' + cap + '), válogass nyugodtan, a többi ráér.' : ' Szép napot!'),
+  };
 }

@@ -44,9 +44,11 @@ Nyisd meg a címet a telefonon, lépj be Google-fiókkal, majd:
 - **iPhone (Safari):** Megosztás → *Főképernyőhöz adás*
 
 ## Esti értesítés (Android)
-Este, a beállított időpontban értesítés jön, ha aznap még nem rögzítettél semmit, vagy ha maradt esedékes teendő. Ha nincs mit mondani, vagy már megvan a reális napod, nem jön értesítés.
+- **Reggel** (alapból 7:30, 6:00–9:30 között állítható): a mára esedékes teendők. Ha nincs semmi esedékes, nem jön értesítés.
+- **Este** (alapból 20:00, 17:00–22:00 között állítható): napi összefoglaló egy kis vállveregetéssel, illetve szól, ha aznap még nem rögzítettél semmit, vagy ha maradt esedékes teendő. Ha már megvan a reális napod, az esedékes teendőket nem sorolja.
+- Mindkettő és az esti részek külön kapcsolhatók: **Beállítások → Értesítések**.
 
-Hogyan működik: a telefon a Firebase Cloud Messagingen keresztül kapja az értesítést (`firebase-messaging-sw.js`). A küldést a GitHub Actions végzi: a `.github/workflows/esti-ertesites.yml` esténként 20 percenként lefuttatja a `scripts/notify.mjs` programot, ami megnézi, kinek kell szólni.
+Hogyan működik: a telefon a Firebase Cloud Messagingen keresztül kapja az értesítést (`firebase-messaging-sw.js`). A küldést a GitHub Actions végzi: a `.github/workflows/esti-ertesites.yml` reggel és este 20 percenként lefuttatja a `scripts/notify.mjs` programot, ami megnézi, kinek kell szólni.
 
 Egyszeri beállítás:
 1. **Web Push kulcs:** Firebase konzol → fogaskerék → **Project settings → Cloud Messaging** → lent **Web configuration → Web Push certificates → Generate key pair**. A megjelenő kulcs nyilvános; ez kerül a `firebase-config.js` `FIREBASE_VAPID_KEY` sorába.
