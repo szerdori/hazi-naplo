@@ -190,6 +190,15 @@ svg.chart .ref { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 4 4; o
 .push-block { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
 .push-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .push-head select { min-height: 38px; padding: 6px 10px; }
+.x.move { font-size: 16px; width: 30px; }
+.x.move:hover { color: var(--accent); }
+.row.pred { background: var(--due-soft); }
+.row.pred .grow { color: var(--ink); }
+.row.pred .small { color: var(--due); }
+.qty { font-size: 13px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+.inline > .qty-input { flex: 0 1 96px; min-width: 70px; }
+.row.bag-ask { background: var(--bg); flex-wrap: wrap; }
+.card.rest { gap: 10px; }
 .login { display: grid; gap: 14px; justify-items: start; margin-top: 28px; }
 </style>
 </head>
@@ -337,7 +346,7 @@ const isEditing = (kind, key) => S.editing && S.editing.kind === kind && S.editi
 const PENCIL = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>';
 const editBtn = (kind, key, label) => '<button class="x edit" aria-label="' + esc(label) + ' átnevezése" data-act="edit" data-kind="' + kind + '" data-key="' + esc(key) + '">' + PENCIL + '</button>';
 const renameForm = (kind, key, value) => '<form class="inline rename" data-form="rename" data-kind="' + kind + '" data-key="' + esc(key) + '">' +
-  '<input id="rename-input" value="' + esc(value) + '" required aria-label="Új név"><button class="btn sm" type="submit">Mentés</button><button class="btn ghost sm" type="button" data-act="cancel-edit">Mégse</button></form>';
+  '<input id="rename-input" value="' + esc(value) + '"' + (kind === 'qty' ? ' placeholder="Mennyiség, pl. 2 l" aria-label="Mennyiség"' : ' required aria-label="Új név"') + '><button class="btn sm" type="submit">Mentés</button><button class="btn ghost sm" type="button" data-act="cancel-edit">Mégse</button></form>';
 function findTask(id) { return S.chores.find(c => c.id === id && c.group !== 'apolas') || famTasks().find(t => t.id === id) || null; }
 function choreName(id) { const c = findTask(id); return c ? c.name : null; }
 function daysLabel(days) { return WEEK.filter(d => days.includes(d)).map(d => WDS[d]).join(', '); }
@@ -577,36 +586,43 @@ function statsSection() {
 function viewMa() {
   const entries = allEntries();
   const today = sod(Date.now());
-  const chores = sortedChores().map(c => ({ c, i: choreInfo(c, entries) }))
-    .sort((a, b) => (a.i.due ?? Infinity) - (b.i.due ?? Infinity));
+  // Tiles keep the user's own order (Beállítások). Only what is due (or still being learned) and not yet done today stays in view.
+  const chores = sortedChores().map(c => ({ c, i: choreInfo(c, entries) }));
   const fam = famTasks().map(c => ({ c, i: choreInfo(c, entries) }));
+  const doneToday = new Set(entries.filter(e => e.t >= today).map(e => e.chore));
+  const visible = x => !doneToday.has(x.c.id) && (x.i.due == null || x.i.due <= today);
   const dueCount = [...chores, ...fam].filter(x => x.i.due != null && x.i.due <= today).length;
   const todays = entries.filter(e => e.t >= today).reverse();
   setHead('Ma', dueCount ? dueCount + ' teendő esedékes ma vagy már késésben van.' : 'Koppints arra, amit elvégeztél.');
   let h = dbBanner();
   h += todayCard([...chores, ...fam], entries);
   if (new Date().getDay() === 0) h += '<div class="banner">Vasárnap van: elkészült a heti összefoglalód. <button class="btn ghost sm" data-act="tab" data-tab="naplo">Megnézem</button></div>';
+  const tile = ({ c, i }) => '<button class="tile' + (S.flash === c.id ? ' flash' : '') + '" data-act="log" data-id="' + esc(c.id) + '">' +
+    '<span class="nm">' + esc(c.name) + '</span>' + dueChip(i.due) +
+    '<span class="meta">' + (i.last ? 'Utoljára: ' + relDay(i.last) : 'Még nem rögzítetted') + '<br>' + esc(i.freq) + '</span></button>';
+  const famCards = (list, all) => family().people.map(p => {
+    const mine = list.filter(x => x.c.person === p.name);
+    return mine.length ? '<div class="fam-person"><div class="fam-name">' + esc(p.name) + '</div><div class="chips">' + mine.map(({ c, i }) => famChip(c, i)).join('') + '</div></div>' : '';
+  }).join('');
+  let shown = 0;
   for (const g of GROUPS) {
-    const list = chores.filter(x => groupOf(x.c) === g.id);
-    if (!list.length && g.id !== 'haz') continue;
-    h += '<section><div class="section-head"><h2>' + g.ma + '</h2><span class="hint">' + g.hint + '</span></div>';
-    if (!list.length) h += '<div class="list"><div class="empty">' + g.empty + ' A Beállítások fülön adhatsz hozzá.</div></div>';
-    else h += '<div class="tiles">' + list.map(({ c, i }) =>
-      '<button class="tile' + (S.flash === c.id ? ' flash' : '') + '" data-act="log" data-id="' + esc(c.id) + '">' +
-        '<span class="nm">' + esc(c.name) + '</span>' +
-        dueChip(i.due) +
-        '<span class="meta">' + (i.last ? 'Utoljára: ' + relDay(i.last) : 'Még nem rögzítetted') + '<br>' + esc(i.freq) + '</span>' +
-      '</button>').join('') + '</div>';
-    h += '</section>';
+    const all = chores.filter(x => groupOf(x.c) === g.id), list = all.filter(visible);
+    shown += list.length;
+    if (!all.length && g.id === 'haz') h += '<section><h2>' + g.ma + '</h2><div class="list"><div class="empty">' + g.empty + ' A Beállítások fülön adhatsz hozzá.</div></div></section>';
+    if (!list.length) continue;
+    h += '<section><div class="section-head"><h2>' + g.ma + '</h2><span class="hint">' + g.hint + '</span></div><div class="tiles">' + list.map(tile).join('') + '</div></section>';
   }
   if (!family().people.length) h += '<section><h2>Család</h2><div class="list"><div class="empty">Add meg a családtagokat a Beállítások fülön, és itt követheted a hajmosást, körömvágást és a többit.</div></div></section>';
-  if (fam.length) {
-    h += '<section><div class="section-head"><h2>Család</h2><span class="hint">Koppints, ha megvolt</span></div><div class="fam">';
-    for (const p of family().people) {
-      const mine = fam.filter(x => x.c.person === p.name).sort((a, b) => (a.i.due ?? Infinity) - (b.i.due ?? Infinity));
-      h += '<div class="fam-person"><div class="fam-name">' + esc(p.name) + '</div><div class="chips">' + mine.map(({ c, i }) => famChip(c, i)).join('') + '</div></div>';
-    }
-    h += '</div></section>';
+  const famVisible = fam.filter(visible);
+  shown += famVisible.length;
+  if (famVisible.length) h += '<section><div class="section-head"><h2>Család</h2><span class="hint">Koppints, ha megvolt</span></div><div class="fam">' + famCards(famVisible) + '</div></section>';
+  if (!shown && (chores.length || fam.length)) h += '<section><div class="list"><div class="empty">Mára minden esedékes dolog kész. Ha mégis csináltál valamit, lent a „Többi” alatt rögzítheted.</div></div></section>';
+  const restChores = chores.filter(x => !visible(x)), restFam = fam.filter(x => !visible(x));
+  if (restChores.length || restFam.length) {
+    h += '<details class="fam-rules" data-person="ma-tobbi"' + (S.famOpen.has('ma-tobbi') ? ' open' : '') + '><summary>Többi: ma már kész vagy nem mára esedékes (' + (restChores.length + restFam.length) + ')</summary><div class="card rest" style="border:0">';
+    for (const g of GROUPS) { const l = restChores.filter(x => groupOf(x.c) === g.id); if (l.length) h += '<div class="label">' + g.ma + '</div><div class="tiles">' + l.map(tile).join('') + '</div>'; }
+    if (restFam.length) h += '<div class="label">Család</div><div class="fam">' + famCards(restFam) + '</div>';
+    h += '</div></details>';
   }
   h += '<section><div class="section-head"><h2>Mai bejegyzések</h2><span class="hint">' + todays.length + ' db</span></div><div class="list">';
   h += todays.length ? todays.map(e => entryRow(e)).join('') : '<div class="empty">Még semmi. Elfelejtettél valamit tegnapról? A Statisztika fülön pótolhatod.</div>';
@@ -653,6 +669,13 @@ function viewNaplo() {
   h += '</div></section>';
   return h;
 }
+// Items the app expects to run out by the next shopping day. They show on the list (in another colour) without
+// being stored there; "×" hides one until that shopping day has passed. Quantities never affect this prediction.
+function predictedItems() {
+  const shop = nextShopDay(), until = addDays(shop, 1), today = dayKey(Date.now());
+  return S.items.filter(i => !i.onList && !(i.skipUntil && i.skipUntil >= today))
+    .map(i => ({ i, f: itemInfo(i) })).filter(x => x.f.next && x.f.next <= until).sort((a, b) => a.f.next - b.f.next);
+}
 function viewBolt() {
   const shop = nextShopDay();
   const no = S.config.noShopDays || [];
@@ -663,44 +686,57 @@ function viewBolt() {
   const stores = S.config.stores || [];
   const lastStore = lsGet('lastStore') || '';
   const onList = S.items.filter(i => i.onList);
-  const off = S.items.filter(i => !i.onList);
-  const sugg = off.map(i => ({ i, f: itemInfo(i) })).filter(x => x.f.next && x.f.next <= addDays(shop, 1)).sort((a, b) => a.f.next - b.f.next);
-  const suggIds = new Set(sugg.map(x => x.i.id));
-  const recent = off.filter(i => !suggIds.has(i.id) && (i.bought || []).length)
+  const predicted = predictedItems();
+  const predIds = new Set(predicted.map(x => x.i.id));
+  const recent = S.items.filter(i => !i.onList && !predIds.has(i.id) && (i.bought || []).length)
     .sort((a, b) => (b.bought || []).length - (a.bought || []).length).slice(0, 16);
 
   let h = dbBanner();
   h += '<section><form class="inline" data-form="add-item">' +
     '<input id="item-name" list="known-items" placeholder="Mit kell venni?" autocomplete="off" required aria-label="Termék">' +
+    '<input id="item-qty" class="qty-input" placeholder="Mennyi?" autocomplete="off" aria-label="Mennyiség (nem kötelező)">' +
     '<datalist id="known-items">' + S.items.map(i => '<option value="' + esc(i.name) + '">').join('') + '</datalist>' +
     '<select id="item-store" aria-label="Bolt"><option value="">Bármelyik bolt</option>' + stores.map(s => '<option' + (s === lastStore ? ' selected' : '') + '>' + esc(s) + '</option>').join('') + '</select>' +
     '<button class="btn" type="submit">Hozzáad</button></form></section>';
 
-  h += '<section><div class="section-head"><h2>A lista</h2>' + (onList.length ? '<button class="btn ghost sm" data-act="copy-list">Másolás a páromnak</button>' : '') + '</div>';
+  const total = onList.length + predicted.length;
+  h += '<section><div class="section-head"><h2>A lista</h2>' + (total ? '<button class="btn ghost sm" data-act="copy-list">Másolás a páromnak</button>' : '') + '</div>';
   if (S.copyText != null && S.copyTitle === 'list') h += copyBox();
   h += '<div class="list">';
-  if (!onList.length) h += '<div class="empty">Üres a lista. Írd be fent, vagy válassz a javaslatok közül.</div>';
+  if (!total) h += '<div class="empty">Üres a lista. Írd be fent, vagy válassz a korábban vettek közül.</div>';
   else {
     const groups = {};
-    onList.forEach(i => (groups[i.store || ''] ||= []).push(i));
+    onList.forEach(i => (groups[i.store || ''] ||= []).push({ i, pred: false }));
+    predicted.forEach(({ i, f }) => (groups[i.store || ''] ||= []).push({ i, f, pred: true }));
     Object.keys(groups).sort((a, b) => (a === '') - (b === '') || a.localeCompare(b, 'hu')).forEach(g => {
       h += '<div class="group-label">' + esc(g || 'Bármelyik bolt') + '</div>';
-      h += groups[g].sort((a, b) => (a.addedAt || 0) - (b.addedAt || 0)).map(i =>
-        '<div class="row"><button class="check" aria-label="Megvettük: ' + esc(i.name) + '" data-act="bought" data-id="' + esc(i.id) + '"></button>' +
-        '<span class="grow">' + esc(i.name) + '</span>' +
-        '<button class="x" aria-label="Levétel a listáról" data-act="unlist" data-id="' + esc(i.id) + '">×</button></div>').join('');
+      h += groups[g].sort((a, b) => a.pred - b.pred || (a.i.addedAt || 0) - (b.i.addedAt || 0)).map(({ i, f, pred }) => isEditing('qty', i.id)
+        ? '<div class="row">' + renameForm('qty', i.id, i.qty || '') + '</div>'
+        : '<div class="row' + (pred ? ' pred' : '') + '"><button class="check" aria-label="Megvettük: ' + esc(i.name) + '" data-act="bought" data-id="' + esc(i.id) + '"></button>' +
+          '<span class="grow">' + esc(i.name) + (i.qty && !pred ? ' <span class="qty">' + esc(i.qty) + '</span>' : '') +
+          (pred ? '<span class="small"> · javasolt, kb. ' + fmtNum(f.iv) + ' naponta veszitek</span>' : '') + '</span>' +
+          (pred ? '' : '<button class="x edit" aria-label="Mennyiség: ' + esc(i.name) + '" data-act="edit" data-kind="qty" data-key="' + esc(i.id) + '">' + PENCIL + '</button>') +
+          '<button class="x" aria-label="' + (pred ? 'Most nem kell' : 'Levétel a listáról') + '" data-act="' + (pred ? 'pred-skip' : 'unlist') + '" data-id="' + esc(i.id) + '">×</button></div>').join('');
     });
   }
-  h += '</div><div class="hint">A pipa azt jelenti: megvettük. Ebből tanulja meg az app, mit milyen gyakran vesztek. Az × csak leveszi a listáról.</div></section>';
-
-  if (sugg.length) h += '<section><div class="section-head"><h2>Valószínűleg fogy</h2><span class="hint">' + dayName(shop) + 'i bevásárlásra</span></div><div class="chips">' +
-    sugg.map(({ i, f }) => '<button class="pick sugg" data-act="relist" data-id="' + esc(i.id) + '">+ ' + esc(i.name) + '<span class="small">kb. ' + fmtNum(f.iv) + ' naponta</span></button>').join('') + '</div></section>';
+  h += '</div><div class="hint">A pipa azt jelenti: megvettük. Ebből tanulja meg az app, mit milyen gyakran vesztek. Az × csak leveszi a listáról. ' +
+    (predicted.length ? 'A színes tételeket az app tette fel, mert a következő bevásárlásig valószínűleg elfogynak. Náluk az × csak erre a bevásárlásra veszi le őket.' : '') + '</div></section>';
   if (recent.length) h += '<section><h2>Korábban vettétek</h2><div class="chips">' +
     recent.map(i => '<button class="pick" data-act="relist" data-id="' + esc(i.id) + '">+ ' + esc(i.name) + '</button>').join('') + '</div></section>';
   return h;
 }
 function copyBox() {
   return '<div class="card"><div class="hint">Nem sikerült automatikusan a vágólapra tenni. Jelöld ki és másold ki innen:</div><textarea id="copy-area" readonly>' + esc(S.copyText) + '</textarea><button class="btn ghost sm" data-act="copy-close">Bezárás</button></div>';
+}
+// Up / down buttons for user-defined order (chores within a group, todos).
+const moveBtns = (kind, id, label) =>
+  '<button class="x move" aria-label="' + esc(label) + ' feljebb" data-act="move-up" data-kind="' + kind + '" data-id="' + esc(id) + '">↑</button>' +
+  '<button class="x move" aria-label="' + esc(label) + ' lejjebb" data-act="move-down" data-kind="' + kind + '" data-id="' + esc(id) + '">↓</button>';
+// Moves one element of `list` by `dir` (-1 / +1) and returns the new order, or null at the edge.
+function moved(list, id, dir) {
+  const i = list.findIndex(x => x.id === id), j = i + dir;
+  if (i < 0 || j < 0 || j >= list.length) return null;
+  const out = list.slice(); [out[i], out[j]] = [out[j], out[i]]; return out;
 }
 function ruleRow(c, deletable) {
   const r = c.rule || { mode: 'auto' };
@@ -715,7 +751,7 @@ function ruleRow(c, deletable) {
       '<option value="auto"' + (r.mode === 'auto' || !r.mode ? ' selected' : '') + '>Tanulja meg magától</option>' +
       '<option value="days"' + (r.mode === 'days' ? ' selected' : '') + '>Fix napokon</option>' +
       '<option value="every"' + (r.mode === 'every' ? ' selected' : '') + '>X naponta</option></select>' +
-    (deletable ? editBtn('chore', c.id, c.name) + '<button class="x" aria-label="Törlés" data-act="ask-del" data-id="' + esc(c.id) + '">×</button>' : '') + '</div>' + extra + confirm + '</div>';
+    (deletable ? moveBtns('chore', c.id, c.name) + editBtn('chore', c.id, c.name) + '<button class="x" aria-label="Törlés" data-act="ask-del" data-id="' + esc(c.id) + '">×</button>' : '') + '</div>' + extra + confirm + '</div>';
 }
 function viewSzabaly() {
   setHead('Beállítások', 'Amit előre tudsz, azt itt adhatod meg. A szabály felülírja a megfigyelt mintát.');
@@ -990,7 +1026,7 @@ function viewJatszo() {
   const onList = new Set(S.items.filter(i => i.onList).map(i => i.name.toLowerCase()));
   const bagRow = (key, name, buy) => '<div class="row"><button class="check' + (checked.includes(key) ? ' on' : '') + '" aria-pressed="' + checked.includes(key) + '" aria-label="Bepakolva: ' + esc(name) + '" data-act="bag-check" data-key="' + esc(key) + '"></button>' +
     '<span class="grow' + (checked.includes(key) ? ' done' : '') + '">' + esc(name) + '</span>' +
-    (buy ? (onList.has(buyName(name)) ? '<span class="small">listán</span>' : '<button class="btn ghost sm" data-act="bag-buy" data-name="' + esc(name) + '">Fogyóban</button>') : '') + '</div>';
+    (buy ? bagLowCtl(name, onList) : '') + '</div>' + (buy && S.bagAsk === name ? bagAskRow(name) : '');
   h += '<section><div class="section-head"><h2>Hátizsák</h2><span class="hint">' + done + '/' + total + ' bepakolva</span></div><div class="list">' +
     '<div class="group-label">Alap</div>' + base.map(b => bagRow(b.id, b.name, b.buy)).join('') +
     (extra.length ? '<div class="group-label">Erre a kiruccanásra</div>' + extra.map(x => bagRow('x:' + x, x, false)).join('') : '') +
@@ -1014,6 +1050,17 @@ function viewJatszo() {
   return h;
 }
 const buyName = n => n.replace(/\s*×\d+$/, '').toLowerCase();
+const refillTitle = n => 'Hátizsákba feltölteni: ' + n.replace(/\s*×\d+$/, '');
+// "Fogyóban" asks where to go: the shopping list, or a ToDo to refill the bag (there may be more at home).
+function bagLowCtl(name, onList) {
+  if (onList.has(buyName(name))) return '<span class="small">listán</span>';
+  if (S.todos.some(t => !t.doneAt && t.title === refillTitle(name))) return '<span class="small">ToDo-ban</span>';
+  return '<button class="btn ghost sm" data-act="bag-low" data-name="' + esc(name) + '">Fogyóban</button>';
+}
+const bagAskRow = name => '<div class="row bag-ask"><span class="grow small">Hová tegyem?</span>' +
+  '<button class="btn sm" data-act="bag-buy" data-name="' + esc(name) + '">Bevásárlólistára</button>' +
+  '<button class="btn ghost sm" data-act="bag-todo" data-name="' + esc(name) + '">ToDo: feltölteni</button>' +
+  '<button class="x" aria-label="Mégse" data-act="bag-ask-close">×</button></div>';
 function addToShopping(name) {
   const ex = S.items.find(i => i.name.toLowerCase() === name.toLowerCase());
   if (ex) saveItem({ ...ex, onList: true, addedAt: Date.now() });
@@ -1049,28 +1096,42 @@ function todoToggles(prefix, t) {
   return '<div class="chips">' + chip('urgent', t.urgent, 'Sürgős') + chip('impact', t.impact, 'Nagy haszna van') + '</div>' +
     '<div class="chips">' + EFFORTS.map(([k, l]) => chip('effort', t.effort === k, l, k)).join('') + '</div>';
 }
+// Reminder = how many days before the deadline the morning notification mentions the todo ('' = none).
+const REMINDERS = [['', 'Nincs emlékeztető'], ['0', 'A határidő napján reggel'], ['1', '1 nappal előtte'], ['2', '2 nappal előtte'], ['7', '1 héttel előtte']];
+const remindText = r => r === '0' ? 'emlékeztető a napján' : r === '7' ? 'emlékeztető 1 héttel előtte' : r ? 'emlékeztető ' + r + ' nappal előtte' : '';
 function todoMeta(td) {
   const bits = [];
   if (td.urgent) bits.push('sürgős'); if (td.impact) bits.push('nagy haszon');
   bits.push((EFFORTS.find(x => x[0] === td.effort) || EFFORTS[1])[1]);
   if (td.deadline) bits.push(deadlineText(td.deadline));
+  if (td.deadline && td.remind) bits.push(remindText(td.remind));
   return bits.join(' · ');
 }
-function todoRow(td) {
+// The user's own order: todos with an `order` first (ascending), the rest after them by priority score.
+function sortedTodos() {
+  return S.todos.filter(t => !t.doneAt).sort((a, b) =>
+    (a.order ?? Infinity) - (b.order ?? Infinity) || todoScore(b) - todoScore(a) || (a.createdAt || 0) - (b.createdAt || 0));
+}
+const nextTodoOrder = () => Math.max(-1, ...S.todos.map(t => t.order ?? -1)) + 1;
+function todoRow(td, canMove) {
   if (S.editTodo === td.id) {
     return '<div class="rule-row">' + renameForm('todo', td.id, td.title) + todoToggles('et-', td) +
       '<label class="field">Határidő<input type="date" id="todo-deadline-' + esc(td.id) + '" data-change="todo-deadline" data-id="' + esc(td.id) + '" value="' + esc(td.deadline || '') + '"></label>' +
+      '<label class="field">Emlékeztető értesítésben' + (td.deadline ? '' : ' (előbb adj meg határidőt)') +
+        '<select id="todo-remind-' + esc(td.id) + '" data-change="todo-remind" data-id="' + esc(td.id) + '"' + (td.deadline ? '' : ' disabled') + '>' +
+        REMINDERS.map(([v, l]) => '<option value="' + v + '"' + ((td.remind || '') === v ? ' selected' : '') + '>' + l + '</option>').join('') + '</select></label>' +
       '<div class="inline"><button class="btn ghost sm" data-act="todo-del" data-id="' + esc(td.id) + '">Törlés</button><button class="btn ghost sm" data-act="cancel-edit">Bezárás</button></div></div>';
   }
   const late = td.deadline && diffDays(new Date(td.deadline + 'T00:00').getTime(), Date.now()) <= 3;
   return '<div class="row"><button class="check" aria-label="Kész: ' + esc(td.title) + '" data-act="todo-done" data-id="' + esc(td.id) + '"></button>' +
     '<div class="grow"><div>' + esc(td.title) + '</div><div class="small' + (late ? ' warn-text' : '') + '">' + esc(todoMeta(td)) + '</div></div>' +
+    (canMove ? moveBtns('todo', td.id, td.title) : '') +
     '<button class="x edit" aria-label="' + esc(td.title) + ' szerkesztése" data-act="todo-edit" data-id="' + esc(td.id) + '">' + PENCIL + '</button></div>';
 }
 function viewMajd() {
   setHead('ToDo', 'Ami ráér. Akkor nézz ide, amikor van rá kedved és energiád.');
   if (!S.todoDraft) S.todoDraft = newDraft();
-  const open = S.todos.filter(t => !t.doneAt).sort((a, b) => todoScore(b) - todoScore(a) || (a.createdAt || 0) - (b.createdAt || 0));
+  const open = sortedTodos();
   const done = S.todos.filter(t => t.doneAt).sort((a, b) => b.doneAt - a.doneAt);
   const lim = (TIME_FILTERS.find(f => f[0] === S.todoTime) || TIME_FILTERS[3])[2];
   const fits = open.filter(t => effortMin(t.effort) <= lim);
@@ -1080,11 +1141,10 @@ function viewMajd() {
     todoToggles('dt-', S.todoDraft) +
     '<label class="field">Határidő (nem kötelező)<input type="date" id="todo-deadline" data-change="draft-deadline" value="' + esc(S.todoDraft.deadline || '') + '"></label></form></section>';
   if (open.length) {
-    h += '<section><div class="section-head"><h2>Ha van kedved</h2></div><div class="chips">' +
+    const all = S.todoTime === 'any';
+    h += '<section><div class="section-head"><h2>A lista (' + open.length + ')</h2><span class="hint">' + (all ? 'a nyilakkal rendezheted' : 'szűrve az idődre') + '</span></div><div class="chips">' +
       TIME_FILTERS.map(([k, l]) => '<button class="pick' + (S.todoTime === k ? ' on' : '') + '" aria-pressed="' + (S.todoTime === k) + '" data-act="todo-time" data-val="' + k + '">' + l + '</button>').join('') + '</div>' +
-      '<div class="list">' + (fits.length ? fits.slice(0, 3).map(todoRow).join('') : '<div class="empty">Erre az időre most nincs a listán semmi. Pihenj nyugodtan.</div>') + '</div></section>';
-    const rest = open.filter(t => !fits.slice(0, 3).includes(t));
-    if (rest.length) h += '<details class="fam-rules" data-person="todo-all"' + (S.famOpen.has('todo-all') ? ' open' : '') + '><summary>Összes többi (' + rest.length + ')</summary><div class="list">' + rest.map(todoRow).join('') + '</div></details>';
+      '<div class="list">' + (fits.length ? fits.map(td => todoRow(td, all)).join('') : '<div class="empty">Erre az időre most nincs a listán semmi. Pihenj nyugodtan.</div>') + '</div></section>';
   } else h += '<section><div class="list"><div class="empty">A lista üres. Ide írhatod, ami nem sürgős, de egyszer meg kéne csinálni, hogy ne kelljen fejben tartanod.</div></div></section>';
   if (done.length) h += '<details class="fam-rules" data-person="todo-done"' + (S.famOpen.has('todo-done') ? ' open' : '') + '><summary>Kipipálva (' + done.length + ')</summary><div class="list">' +
     done.map(td => '<div class="row"><button class="check on" aria-label="Visszaállítás: ' + esc(td.title) + '" data-act="todo-undone" data-id="' + esc(td.id) + '"></button><div class="grow done">' + esc(td.title) + '</div><span class="small">' + relDay(td.doneAt) + '</span></div>').join('') + '</div></details>';
@@ -1093,12 +1153,13 @@ function viewMajd() {
 }
 // Suggestions come from the daily Claude review of e-mails and calendars (scripts/javaslatok.ps1 writes them).
 // Nothing reaches the list until accepted; a dismissed one is kept as "dismissed" so it never comes back.
+const validDay = d => /^\d{4}-\d{2}-\d{2}$/.test(d || '') ? d : '';
 function suggestionsSection() {
-  const list = (S.suggestions || []).slice().sort((a, b) => (a.deadline || '9999').localeCompare(b.deadline || '9999') || (a.createdAt || 0) - (b.createdAt || 0));
+  const list = (S.suggestions || []).slice().sort((a, b) => (validDay(a.deadline) || '9999').localeCompare(validDay(b.deadline) || '9999') || (a.createdAt || 0) - (b.createdAt || 0));
   if (!list.length) return '';
   return '<section><div class="section-head"><h2>Javaslatok</h2><span class="hint">levelekből és naptárból</span></div><div class="list">' +
     list.map(s => '<div class="rule-row"><div><div>' + esc(s.title) + '</div><div class="small">' +
-      esc([s.source, s.deadline ? 'határidő: ' + s.deadline.slice(5).replace('-', '.') + '.' : ''].filter(Boolean).join(' · ')) + '</div>' +
+      esc([s.source, validDay(s.deadline) ? 'határidő: ' + s.deadline.slice(5).replace('-', '.') + '.' : ''].filter(Boolean).join(' · ')) + '</div>' +
       (s.note ? '<div class="small">' + esc(s.note) + '</div>' : '') + '</div>' +
       '<div class="inline"><button class="btn sm" data-act="sugg-accept" data-id="' + esc(s.id) + '">Felveszem</button>' +
       '<button class="btn ghost sm" data-act="sugg-dismiss" data-id="' + esc(s.id) + '">Nem kell</button>' +
@@ -1215,14 +1276,16 @@ document.addEventListener('click', e => {
   if (a === 'bought') {
     const it = S.items.find(x => x.id === id); if (!it) return;
     const prev = it;
-    saveItem({ ...it, onList: false, bought: [...(it.bought || []), { t: Date.now(), store: it.store || '', by: S.auth.email || '' }].slice(-60) });
+    saveItem({ ...it, onList: false, qty: '', skipUntil: '', bought: [...(it.bought || []), { t: Date.now(), store: it.store || '', by: S.auth.email || '' }].slice(-60) });
     toast(it.name + ' megvéve.', () => saveItem(prev));
   }
+  if (a === 'pred-skip') { const it = S.items.find(x => x.id === id); if (it) { saveItem({ ...it, skipUntil: dayKey(addDays(nextShopDay(), 1)) }); toast(it.name + ': most nem kell.', () => saveItem(it)); } }
   if (a === 'unlist') { const it = S.items.find(x => x.id === id); if (it) { saveItem({ ...it, onList: false }); toast(it.name + ' levéve a listáról.', () => saveItem(it)); } }
   if (a === 'relist') { const it = S.items.find(x => x.id === id); if (it) saveItem({ ...it, onList: true, addedAt: Date.now() }); }
   if (a === 'copy-list') {
     const groups = {};
-    S.items.filter(i => i.onList).sort((a, b) => (a.addedAt || 0) - (b.addedAt || 0)).forEach(i => (groups[i.store || ''] ||= []).push(i.name));
+    S.items.filter(i => i.onList).sort((a, b) => (a.addedAt || 0) - (b.addedAt || 0)).forEach(i => (groups[i.store || ''] ||= []).push(i.name + (i.qty ? ' (' + i.qty + ')' : '')));
+    predictedItems().forEach(({ i }) => (groups[i.store || ''] ||= []).push(i.name + ' (ha kell)'));
     const text = 'Bevásárlólista (' + MON[new Date().getMonth()] + ' ' + new Date().getDate() + '.)\n' +
       Object.keys(groups).sort((a, b) => (a === '') - (b === '') || a.localeCompare(b, 'hu'))
         .map(g => '\n' + (g || 'Bármelyik bolt') + ':\n' + groups[g].map(n => '- ' + n).join('\n')).join('\n');
@@ -1279,13 +1342,24 @@ document.addEventListener('click', e => {
     const s = (S.suggestions || []).find(x => x.id === id);
     if (s) {
       if (a === 'sugg-accept') {
-        const td = { id: rid(), title: s.title, urgent: false, impact: false, effort: '1o', deadline: /^\d{4}-\d{2}-\d{2}$/.test(s.deadline || '') ? s.deadline : '', createdAt: Date.now(), by: S.auth.email || '', fromSuggestion: s.id };
+        const td = { id: rid(), order: nextTodoOrder(), title: s.title, urgent: false, impact: false, effort: '1o', deadline: /^\d{4}-\d{2}-\d{2}$/.test(s.deadline || '') ? s.deadline : '', createdAt: Date.now(), by: S.auth.email || '', fromSuggestion: s.id };
         saveTodo(td); setSuggestion(s, 'accepted');
         toast('Felvéve a listára. A ceruzával módosíthatod.', () => { S.todos = S.todos.filter(x => x.id !== td.id); persist('todos/' + td.id, () => null); S.suggestions = [...S.suggestions, s]; const { id: _, ...b } = s; persist('suggestions/' + s.id, () => b); });
       } else {
         setSuggestion(s, 'dismissed');
         toast('Elvetve.', () => { S.suggestions = [...S.suggestions, s]; const { id: _, ...b } = s; persist('suggestions/' + s.id, () => b); });
       }
+    }
+  }
+  if (a === 'move-up' || a === 'move-down') {
+    const dir = a === 'move-up' ? -1 : 1;
+    if (el.dataset.kind === 'chore') {
+      const c = S.chores.find(x => x.id === id);
+      const out = c && moved(sortedChores().filter(x => groupOf(x) === groupOf(c)), id, dir);
+      if (out) out.forEach((x, i) => { if (x.order !== i) saveChore({ ...x, order: i }); });
+    } else {
+      const out = moved(sortedTodos(), id, dir);
+      if (out) out.forEach((x, i) => { if (x.order !== i) saveTodo({ ...x, order: i }); });
     }
   }
   if (a === 'todo-time') S.todoTime = el.dataset.val;
@@ -1311,7 +1385,14 @@ document.addEventListener('click', e => {
     const k = el.dataset.key;
     lsSet(key, JSON.stringify(list.includes(k) ? list.filter(x => x !== k) : [...list, k]));
   }
-  if (a === 'bag-buy') { const name = el.dataset.name.replace(/\s*×\d+$/, ''); addToShopping(name); toast(name + ' felkerült a bevásárlólistára.'); }
+  if (a === 'bag-low') S.bagAsk = el.dataset.name;
+  if (a === 'bag-ask-close') S.bagAsk = null;
+  if (a === 'bag-buy') { const name = el.dataset.name.replace(/\s*×\d+$/, ''); addToShopping(name); S.bagAsk = null; toast(name + ' felkerült a bevásárlólistára.'); }
+  if (a === 'bag-todo') {
+    const title = refillTitle(el.dataset.name);
+    saveTodo({ id: rid(), order: nextTodoOrder(), title, urgent: false, impact: false, effort: '15p', deadline: '', createdAt: Date.now(), by: S.auth.email || '' });
+    S.bagAsk = null; toast('Felírva a ToDo-ba: ' + title);
+  }
   if (a === 'visit') {
     const p = places().find(x => x.id === id);
     if (p) { const r = logVisit(p); toast(p.name + ' rögzítve.', () => removeEntry(r.k, r.id)); }
@@ -1342,6 +1423,7 @@ document.addEventListener('change', e => {
   const el = e.target.closest('[data-change]'); if (!el) return;
   if (el.dataset.change === 'trip-start') { S.trip = { ...S.trip, start: +el.value }; render(); return; }
   if (el.dataset.change === 'draft-deadline') { S.todoDraft = { ...S.todoDraft, deadline: el.value }; return; }
+  if (el.dataset.change === 'todo-remind') { const td = S.todos.find(x => x.id === el.dataset.id); if (td) saveTodo({ ...td, remind: el.value }); render(); return; }
   if (el.dataset.change === 'todo-deadline') { const td = S.todos.find(x => x.id === el.dataset.id); if (td) saveTodo({ ...td, deadline: el.value || '' }); render(); return; }
   if (el.dataset.change === 'push-time') { const m = myPush(); if (m) { const { id: _, ...doc } = m; savePush({ ...doc, [el.dataset.field || 'time']: el.value }); } render(); return; }
   if (el.dataset.change === 'trip-dur') { S.trip = { ...S.trip, dur: +el.value }; render(); return; }
@@ -1363,8 +1445,9 @@ document.addEventListener('submit', e => {
     const inp = document.getElementById('item-name'); const name = inp.value.trim(); if (!name) return;
     const store = document.getElementById('item-store').value; lsSet('lastStore', store);
     const ex = S.items.find(i => i.name.toLowerCase() === name.toLowerCase());
-    if (ex) saveItem({ ...ex, onList: true, addedAt: Date.now(), store: store || ex.store || '' });
-    else saveItem({ id: rid(), name, store, onList: true, addedAt: Date.now(), bought: [] });
+    const qtyEl = document.getElementById('item-qty'), qty = qtyEl.value.trim(); qtyEl.value = '';
+    if (ex) saveItem({ ...ex, onList: true, addedAt: Date.now(), store: store || ex.store || '', qty: qty || (ex.onList ? ex.qty || '' : '') });
+    else saveItem({ id: rid(), name, store, qty, onList: true, addedAt: Date.now(), bought: [] });
     inp.value = '';
   }
   if (kind === 'add-chore') {
@@ -1386,7 +1469,11 @@ document.addEventListener('submit', e => {
     }
     inp.value = '';
   }
-  if (kind === 'rename') {
+  if (kind === 'rename' && f.dataset.kind === 'qty') {
+    const it = S.items.find(x => x.id === f.dataset.key);
+    if (it) saveItem({ ...it, qty: document.getElementById('rename-input').value.trim() });
+    S.editing = null;
+  } else if (kind === 'rename') {
     const name = document.getElementById('rename-input').value.trim(); if (!name) return;
     const k = f.dataset.kind, key = f.dataset.key;
     if (k === 'chore') { const c = S.chores.find(x => x.id === key); if (c) saveChore({ ...c, name }); }
@@ -1410,7 +1497,7 @@ document.addEventListener('submit', e => {
   if (kind === 'add-todo') {
     const inp = document.getElementById('todo-title'), dl = document.getElementById('todo-deadline');
     const title = inp.value.trim(); if (!title) return;
-    saveTodo({ id: rid(), title, urgent: S.todoDraft.urgent, impact: S.todoDraft.impact, effort: S.todoDraft.effort, deadline: dl.value || '', createdAt: Date.now(), by: S.auth.email || '' });
+    saveTodo({ id: rid(), order: nextTodoOrder(), title, urgent: S.todoDraft.urgent, impact: S.todoDraft.impact, effort: S.todoDraft.effort, deadline: dl.value || '', createdAt: Date.now(), by: S.auth.email || '' });
     inp.value = ''; dl.value = ''; S.todoDraft = newDraft();
     toast('Felírva. Most már nem kell fejben tartanod.');
   }

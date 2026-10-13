@@ -3,7 +3,7 @@
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getMessaging } from 'firebase-admin/messaging';
-import { budapestNow, shouldSend, buildMessage, buildMorning, withSuggestions, slug, KINDS } from './notify-logic.mjs';
+import { budapestNow, shouldSend, buildMessage, buildMorning, withSuggestions, remindersFor, withReminders, slug, KINDS } from './notify-logic.mjs';
 
 const SITE = process.env.SITE_URL || 'https://szerdori.github.io/hazi-naplo/';
 let account;
@@ -40,7 +40,10 @@ for (const doc of subs) {
     const data = { ...(await loadShared()), status };
     const mine = (await loadPending()).filter(d => !announced.has(d.id) && (!d.data().for || d.data().for === sub.email));
     const base = kind === 'morning' ? buildMorning(sub, now, data) : buildMessage(sub, now, data);
-    const msg = withSuggestions(base, mine.map(d => d.data()));
+    // ToDo reminders ride on the morning message, or on the evening one when mornings are switched off.
+    const reminderKind = sub.morning === false ? 'evening' : 'morning';
+    const reminders = kind === reminderKind ? remindersFor(sub.email, now, data.todos) : [];
+    const msg = withSuggestions(withReminders(base, reminders, now), mine.map(d => d.data()));
     if (msg) {
       try {
         await fcm.send({

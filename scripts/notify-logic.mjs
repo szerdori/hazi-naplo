@@ -91,6 +91,19 @@ export function buildMorning(sub, now, data) {
   };
 }
 
+// ToDo reminders: open todos whose deadline minus the chosen number of days is today.
+export function remindersFor(email, now, todos = []) {
+  const dayMs = 864e5, today = Date.parse(now.day + 'T00:00:00Z');
+  return todos.filter(t => !t.doneAt && t.deadline && t.remind !== undefined && t.remind !== '' && (!t.by || t.by === email))
+    .filter(t => (Date.parse(t.deadline + 'T00:00:00Z') - today) / dayMs === Number(t.remind));
+}
+export function withReminders(msg, todos = [], now) {
+  if (!todos.length) return msg;
+  const when = t => { const d = (Date.parse(t.deadline + 'T00:00:00Z') - Date.parse(now.day + 'T00:00:00Z')) / 864e5; return d === 0 ? 'ma' : d === 1 ? 'holnap' : d + ' nap múlva'; };
+  const text = 'Emlékeztető: ' + todos.slice(0, 3).map(t => t.title + ' (határidő ' + when(t) + ')').join(', ') + (todos.length > 3 ? ' és még ' + (todos.length - 3) : '') + '.';
+  return msg ? { title: msg.title, body: text + ' ' + msg.body } : { title: todos.length === 1 ? 'Emlékeztető' : todos.length + ' emlékeztető', body: text };
+}
+
 // New suggestions from the daily e-mail and calendar review, not yet mentioned in any notification.
 // Adds one sentence to the message, or makes a message of its own when there was nothing else to say.
 export function withSuggestions(msg, suggestions = []) {
