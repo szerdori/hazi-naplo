@@ -190,8 +190,10 @@ svg.chart .ref { stroke: var(--ink); stroke-width: 1.5; stroke-dasharray: 4 4; o
 .push-block { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
 .push-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .push-head select { min-height: 38px; padding: 6px 10px; }
-.x.move { font-size: 16px; width: 30px; }
-.x.move:hover { color: var(--accent); }
+.x.grip { cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+.x.grip:hover { color: var(--accent); background: transparent; }
+.dragging { position: relative; z-index: 2; background: var(--accent-soft) !important; box-shadow: 0 6px 18px rgba(0, 0, 0, .18); }
+.dragging .x.grip { cursor: grabbing; color: var(--accent); }
 .row.pred { background: var(--due-soft); }
 .row.pred .grow { color: var(--ink); }
 .row.pred .small { color: var(--due); }
@@ -728,15 +730,19 @@ function viewBolt() {
 function copyBox() {
   return '<div class="card"><div class="hint">Nem sikerült automatikusan a vágólapra tenni. Jelöld ki és másold ki innen:</div><textarea id="copy-area" readonly>' + esc(S.copyText) + '</textarea><button class="btn ghost sm" data-act="copy-close">Bezárás</button></div>';
 }
-// Up / down buttons for user-defined order (chores within a group, todos).
+// Drag handle for user-defined order (chores within a group, todos). The row carrying it needs data-sort-id,
+// and its parent is the sortable list. Touch, mouse and pen all use pointer events; arrow keys move it too.
+const GRIP = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><g fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></g></svg>';
 const moveBtns = (kind, id, label) =>
-  '<button class="x move" aria-label="' + esc(label) + ' feljebb" data-act="move-up" data-kind="' + kind + '" data-id="' + esc(id) + '">↑</button>' +
-  '<button class="x move" aria-label="' + esc(label) + ' lejjebb" data-act="move-down" data-kind="' + kind + '" data-id="' + esc(id) + '">↓</button>';
-// Moves one element of `list` by `dir` (-1 / +1) and returns the new order, or null at the edge.
-function moved(list, id, dir) {
-  const i = list.findIndex(x => x.id === id), j = i + dir;
-  if (i < 0 || j < 0 || j >= list.length) return null;
-  const out = list.slice(); [out[i], out[j]] = [out[j], out[i]]; return out;
+  '<button class="x grip" id="grip-' + kind + '-' + esc(id) + '" data-grip="' + kind + '" data-id="' + esc(id) + '" aria-label="' + esc(label) + ' áthelyezése: húzd, vagy használd a fel/le nyilakat">' + GRIP + '</button>';
+function applyOrder(kind, ids) {
+  if (kind === 'chore') ids.forEach((id, i) => { const c = S.chores.find(x => x.id === id); if (c && c.order !== i) saveChore({ ...c, order: i }); });
+  else ids.forEach((id, i) => { const t = S.todos.find(x => x.id === id); if (t && t.order !== i) saveTodo({ ...t, order: i }); });
+}
+function orderedIds(kind, id) {
+  if (kind === 'todo') return sortedTodos().map(t => t.id);
+  const c = S.chores.find(x => x.id === id);
+  return c ? sortedChores().filter(x => groupOf(x) === groupOf(c)).map(x => x.id) : [];
 }
 function ruleRow(c, deletable) {
   const r = c.rule || { mode: 'auto' };
@@ -746,7 +752,7 @@ function ruleRow(c, deletable) {
   const confirm = deletable && S.confirmDel === c.id
     ? '<div class="inline"><span class="hint" style="align-self:center">Törlöd? A korábbi bejegyzések megmaradnak.</span><button class="btn danger sm" data-act="del-chore" data-id="' + esc(c.id) + '">Törlés</button><button class="btn ghost sm" data-act="cancel-del">Mégse</button></div>' : '';
   if (deletable && isEditing('chore', c.id)) return '<div class="rule-row">' + renameForm('chore', c.id, c.name) + '</div>';
-  return '<div class="rule-row"><div class="rule-top"><span class="nm">' + esc(c.name) + '</span>' +
+  return '<div class="rule-row"' + (deletable ? ' data-sort-id="' + esc(c.id) + '"' : '') + '><div class="rule-top"><span class="nm">' + esc(c.name) + '</span>' +
     '<select id="mode-' + esc(c.id) + '" data-change="mode" data-id="' + esc(c.id) + '" aria-label="Ütemezés: ' + esc(taskLabel(c)) + '">' +
       '<option value="auto"' + (r.mode === 'auto' || !r.mode ? ' selected' : '') + '>Tanulja meg magától</option>' +
       '<option value="days"' + (r.mode === 'days' ? ' selected' : '') + '>Fix napokon</option>' +
@@ -1123,7 +1129,7 @@ function todoRow(td, canMove) {
       '<div class="inline"><button class="btn ghost sm" data-act="todo-del" data-id="' + esc(td.id) + '">Törlés</button><button class="btn ghost sm" data-act="cancel-edit">Bezárás</button></div></div>';
   }
   const late = td.deadline && diffDays(new Date(td.deadline + 'T00:00').getTime(), Date.now()) <= 3;
-  return '<div class="row"><button class="check" aria-label="Kész: ' + esc(td.title) + '" data-act="todo-done" data-id="' + esc(td.id) + '"></button>' +
+  return '<div class="row"' + (canMove ? ' data-sort-id="' + esc(td.id) + '"' : '') + '><button class="check" aria-label="Kész: ' + esc(td.title) + '" data-act="todo-done" data-id="' + esc(td.id) + '"></button>' +
     '<div class="grow"><div>' + esc(td.title) + '</div><div class="small' + (late ? ' warn-text' : '') + '">' + esc(todoMeta(td)) + '</div></div>' +
     (canMove ? moveBtns('todo', td.id, td.title) : '') +
     '<button class="x edit" aria-label="' + esc(td.title) + ' szerkesztése" data-act="todo-edit" data-id="' + esc(td.id) + '">' + PENCIL + '</button></div>';
@@ -1142,7 +1148,7 @@ function viewMajd() {
     '<label class="field">Határidő (nem kötelező)<input type="date" id="todo-deadline" data-change="draft-deadline" value="' + esc(S.todoDraft.deadline || '') + '"></label></form></section>';
   if (open.length) {
     const all = S.todoTime === 'any';
-    h += '<section><div class="section-head"><h2>A lista (' + open.length + ')</h2><span class="hint">' + (all ? 'a nyilakkal rendezheted' : 'szűrve az idődre') + '</span></div><div class="chips">' +
+    h += '<section><div class="section-head"><h2>A lista (' + open.length + ')</h2><span class="hint">' + (all ? 'a ⠿ fogantyúval húzva rendezheted' : 'szűrve az idődre') + '</span></div><div class="chips">' +
       TIME_FILTERS.map(([k, l]) => '<button class="pick' + (S.todoTime === k ? ' on' : '') + '" aria-pressed="' + (S.todoTime === k) + '" data-act="todo-time" data-val="' + k + '">' + l + '</button>').join('') + '</div>' +
       '<div class="list">' + (fits.length ? fits.map(td => todoRow(td, all)).join('') : '<div class="empty">Erre az időre most nincs a listán semmi. Pihenj nyugodtan.</div>') + '</div></section>';
   } else h += '<section><div class="list"><div class="empty">A lista üres. Ide írhatod, ami nem sürgős, de egyszer meg kéne csinálni, hogy ne kelljen fejben tartanod.</div></div></section>';
@@ -1228,7 +1234,48 @@ function scheduleStatus() {
     persist('status/' + slug(S.auth.email), () => ({ ...body, updatedAt: Date.now() }));
   }, 2000);
 }
+// ---------- drag to reorder ----------
+let drag = null;
+document.addEventListener('pointerdown', e => {
+  const grip = e.target.closest('[data-grip]'); if (!grip || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  const row = grip.closest('[data-sort-id]'); if (!row) return;
+  e.preventDefault();
+  drag = { kind: grip.dataset.grip, row, list: row.parentElement, pid: e.pointerId, moved: false };
+  S.dragging = true; row.classList.add('dragging');
+  try { grip.setPointerCapture(e.pointerId); } catch {}
+});
+document.addEventListener('pointermove', e => {
+  if (!drag || e.pointerId !== drag.pid) return;
+  e.preventDefault();
+  const y = e.clientY;
+  const rows = [...drag.list.children].filter(r => r.dataset && r.dataset.sortId && r !== drag.row);
+  const before = rows.find(r => { const b = r.getBoundingClientRect(); return y < b.top + b.height / 2; });
+  if (before) { if (drag.row.nextElementSibling !== before) { drag.list.insertBefore(drag.row, before); drag.moved = true; } }
+  else if (rows.length && drag.row !== rows[rows.length - 1].nextElementSibling) { rows[rows.length - 1].after(drag.row); drag.moved = true; }
+  if (y < 80) window.scrollBy(0, -14); else if (y > innerHeight - 120) window.scrollBy(0, 14);
+});
+function endDrag(e) {
+  if (!drag || e.pointerId !== drag.pid) return;
+  const d = drag; drag = null; S.dragging = false;
+  d.row.classList.remove('dragging');
+  if (d.moved) applyOrder(d.kind, [...d.list.children].filter(r => r.dataset && r.dataset.sortId).map(r => r.dataset.sortId));
+  render();
+}
+document.addEventListener('pointerup', endDrag);
+document.addEventListener('pointercancel', endDrag);
+document.addEventListener('keydown', e => {
+  const grip = e.target.closest && e.target.closest('[data-grip]');
+  if (!grip || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+  e.preventDefault();
+  const ids = orderedIds(grip.dataset.grip, grip.dataset.id), i = ids.indexOf(grip.dataset.id), j = i + (e.key === 'ArrowUp' ? -1 : 1);
+  if (i < 0 || j < 0 || j >= ids.length) return;
+  [ids[i], ids[j]] = [ids[j], ids[i]];
+  applyOrder(grip.dataset.grip, ids);
+  render();
+  const again = document.querySelector('[data-grip][data-id="' + CSS.escape(grip.dataset.id) + '"]'); if (again) again.focus();
+});
 function render() {
+  if (S.dragging) return; // a live update during a drag would rebuild the list under the finger; endDrag re-renders
   document.getElementById('today-label').textContent = longDate(Date.now());
   document.querySelectorAll('nav.tabs button').forEach(b => b.setAttribute('aria-current', b.dataset.tab === S.tab ? 'page' : 'false'));
   if (S.auth.status !== 'signedIn') {
@@ -1349,17 +1396,6 @@ document.addEventListener('click', e => {
         setSuggestion(s, 'dismissed');
         toast('Elvetve.', () => { S.suggestions = [...S.suggestions, s]; const { id: _, ...b } = s; persist('suggestions/' + s.id, () => b); });
       }
-    }
-  }
-  if (a === 'move-up' || a === 'move-down') {
-    const dir = a === 'move-up' ? -1 : 1;
-    if (el.dataset.kind === 'chore') {
-      const c = S.chores.find(x => x.id === id);
-      const out = c && moved(sortedChores().filter(x => groupOf(x) === groupOf(c)), id, dir);
-      if (out) out.forEach((x, i) => { if (x.order !== i) saveChore({ ...x, order: i }); });
-    } else {
-      const out = moved(sortedTodos(), id, dir);
-      if (out) out.forEach((x, i) => { if (x.order !== i) saveTodo({ ...x, order: i }); });
     }
   }
   if (a === 'todo-time') S.todoTime = el.dataset.val;
