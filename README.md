@@ -67,6 +67,29 @@ Tudnivalók:
 ## Adatok átköltöztetése a prototípusból
 A claude.ai-os változatban: **Szabályok → Adatok → Adatok másolása (JSON)**. Az új appban: **Szabályok → Adatok → Importálás**, majd illeszd be és nyomd meg a **Betöltés** gombot.
 
+## Regressziós tesztek
+A `tests` mappában van egy tesztkészlet, ami végigpróbálja az app funkcióit: Ma fül, statisztika, bevásárlás, ToDo, javaslatok, családi ápolás, játszótér, beállítások és az értesítések logikája. A tesztek egy láthatatlan Edge böngészőben futnak, egy memóriabeli, kitalált adatbázison (`tests/mock-db.js`), így a valódi adatokhoz és a Firebase-hez nem nyúlnak.
+
+Futtatás a projektmappában:
+```
+.\tests\run-tests.ps1
+```
+- `-Csak Bevásárlás`: csak azok a tesztek, amelyek nevében ez szerepel
+- `-Reszletes`: kiírja, melyik teszt épp indul
+- `-Lathato`: látható böngészőablakban fut, hibakereséshez
+
+A `feltoltes.ps1` feltöltés előtt automatikusan lefuttatja őket, és ha valamelyik hibás, nem tölt fel.
+
+**Új teszt felvétele:** a `tests/tests-app.js` megfelelő csoportjának végére (az értesítések logikájához a `tests/tests-notify.js`-be):
+```js
+test('Csoport: mit ellenőriz', async () => {
+  const app = await openApp({ tab: 'bolt' });             // friss app, alap adatokkal, bejelentkezve
+  await app.input('item-name', 'tej'); await app.submit('form[data-form=add-item]');
+  eq(app.store['items/tej'].onList, true, 'a tej a listán van');
+});
+```
+Segédeszközök (`tests/harness.js`): `openApp({ tab, seed, setup })`, `app.click`, `app.input`, `app.change`, `app.submit`, `app.go`, `app.drag`, `app.key`, `app.section`, `app.tileNames`, `app.toast`, `app.store`, ellenőrzésre `ok`, `eq`, `has`.
+
 ## Frissítés
 Minden változtatás után futtasd a projektmappában:
 ```

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<title>MomAssistant tesztek</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 16px; }
+  #frames { display: flex; flex-wrap: wrap; gap: 8px; }
+  pre { background: #f4f4f4; padding: 12px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>MomAssistant regressziós tesztek</h1>
+<p id="progress">Futás…</p>
+<pre id="results"></pre>
+<div id="frames"></div>
+<script src="tests/harness.js"></script>
+<script src="tests/tests-app.js"></script>
+<script type="module">
+// Unit tests of the notification logic use the real module; they register before the run starts.
+import './tests/tests-notify.js';
+if (document.readyState === 'complete') runAll(); else window.addEventListener('load', () => runAll());
+</script>
+</body>
+</html>
