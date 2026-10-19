@@ -316,6 +316,19 @@ test('Beállítások: robotzóna és tilos bevásárlónap', async () => {
   ok(app.section('Robotporszívó'), 'a Ma fülön megjelenik a Robotporszívó rész');
 });
 
+test('Beállítások: téma választása eszközönként, alapból automatikus', async () => {
+  const app = await openApp({ tab: 'szabaly' });
+  ok(!app.d.documentElement.getAttribute('data-theme'), 'alapból nincs kényszerített téma');
+  await app.click('[data-act=set-theme][data-theme=color]');
+  eq(app.d.documentElement.getAttribute('data-theme'), 'color');
+  eq(app.w.localStorage.getItem('theme'), 'color');
+  ok(app.$('[data-act=set-theme][data-theme=color]').getAttribute('aria-pressed') === 'true', 'a választott gomb jelölt');
+  await app.click('[data-act=set-theme][data-theme=dark]');
+  eq(app.d.documentElement.getAttribute('data-theme'), 'dark');
+  await app.click('[data-act=set-theme][data-theme=auto]');
+  ok(!app.d.documentElement.getAttribute('data-theme'), 'automatikusnál nincs kényszerítés');
+});
+
 test('Beállítások: játszóhely címke és új hely az ötletek közül', async () => {
   const app = await openApp({ tab: 'szabaly', setup: w => { w.fetch = weatherStub({ t: 18, a: 18 }); } });
   app.$('details[data-person="place-tulipanos"]').open = true; await wait(50);

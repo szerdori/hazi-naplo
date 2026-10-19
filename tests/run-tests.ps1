@@ -38,9 +38,10 @@ $results = $null; $got = $false
 $deadline = (Get-Date).AddSeconds($Idokorlat)
 try {
   while (-not $got -and (Get-Date) -lt $deadline) {
-    $ar = $l.BeginGetContext($null, $null)
+    # A függő kérést megtartjuk a körök között; újat csak a feldolgozás után indítunk (különben a lejárt várakozás elnyelhet egy kérést).
+    if (-not $ar) { $ar = $l.BeginGetContext($null, $null) }
     if (-not $ar.AsyncWaitHandle.WaitOne(1000)) { continue }
-    $c = $l.EndGetContext($ar)
+    $c = $l.EndGetContext($ar); $ar = $null
     $path = $c.Request.Url.AbsolutePath
     if ($CsakKiszolgalo) { Write-Host ($c.Request.HttpMethod + ' ' + $path) }
     try {

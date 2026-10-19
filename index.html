@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>MomAssistant</title>
 <meta name="theme-color" content="#2E6B5E">
+<script>try { var t = localStorage.getItem('theme'); if (t === 'dark' || t === 'color') document.documentElement.setAttribute('data-theme', t); } catch (e) {}</script>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
@@ -30,6 +31,19 @@
   --bg: #111715; --surface: #19211E; --ink: #E5ECE8; --muted: #98A6A0; --line: #2B3632;
   --accent: #74C3AC; --accent-ink: #0E1A16; --accent-soft: #1E3A32;
   --due: #E9A26C; --due-soft: #3A2A1D; --late: #EB8592; --late-soft: #3E2228; color-scheme: dark; }
+/* Színes, világos téma (eszközönként választható a Beállításokban) */
+:root[data-theme="color"] {
+  --bg: #FFF4E4; --surface: #FFFFFF; --ink: #2A2733; --muted: #6A6477; --line: #F1DEC4;
+  --accent: #0B7F7A; --accent-ink: #FFFFFF; --accent-soft: #D6F1EC;
+  --due: #C2410C; --due-soft: #FFE2C9; --late: #BE1E4B; --late-soft: #FFD9E3; color-scheme: light; }
+:root[data-theme="color"] header.top { background: linear-gradient(135deg, #FFE2C9 0%, #FFD3E1 55%, #D6F1EC 100%); margin-inline: -16px; padding-inline: 16px; border-radius: 0 0 var(--r) var(--r); }
+:root[data-theme="color"] .tile { border-top: 4px solid #F4A259; }
+:root[data-theme="color"] .tile:nth-child(3n+2) { border-top-color: #5CC2B5; }
+:root[data-theme="color"] .tile:nth-child(3n) { border-top-color: #E88BB0; }
+:root[data-theme="color"] nav.tabs { border-top: 3px solid #F4A259; }
+:root[data-theme="color"] nav.tabs button[aria-current="page"] { color: var(--accent); background: var(--accent-soft); }
+:root[data-theme="color"] .card, :root[data-theme="color"] .list { box-shadow: 0 1px 4px rgba(194, 120, 40, .12); }
+.pick.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 
 html { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
 html, body { background: var(--bg); color: var(--ink); }
@@ -765,6 +779,11 @@ function viewSzabaly() {
   const stores = S.config.stores || [];
   let h = dbBanner();
   h += notifySection();
+  const theme = lsGet('theme') || 'auto';
+  h += '<section><h2>Megjelenés</h2><div class="card"><div class="chips">' +
+    [['auto', 'Automatikus'], ['dark', 'Sötét'], ['color', 'Világos, színes']].map(([v, l]) =>
+      '<button class="pick' + (theme === v ? ' on' : '') + '" aria-pressed="' + (theme === v) + '" data-act="set-theme" data-theme="' + v + '">' + l + '</button>').join('') +
+    '</div><div class="hint">Csak ezen a telefonon érvényes. Az automatikus a telefon sötét/világos beállítását követi.</div></div></section>';
   h += '<section><h2>Bevásárlás</h2><div class="card"><div>Ezeken a napokon <b>nem</b> tudtok vásárolni:</div><div class="days">' +
     WEEK.map(d => '<button class="day' + (no.includes(d) ? ' off' : '') + '" aria-pressed="' + no.includes(d) + '" data-act="toggle-noshop" data-d="' + d + '">' + WDS[d] + '</button>').join('') +
     '</div><div class="hint">Ezekre a napokra az app nem tervez bevásárlást.</div></div></section>';
@@ -1345,6 +1364,10 @@ document.addEventListener('click', e => {
   if (a === 'import-open') S.importOpen = true;
   if (a === 'import-close') S.importOpen = false;
   if (a === 'import-run') { importData(document.getElementById('import-area').value); S.importOpen = false; }
+  if (a === 'set-theme') {
+    const t = el.dataset.theme; lsSet('theme', t);
+    if (t === 'dark' || t === 'color') document.documentElement.setAttribute('data-theme', t); else document.documentElement.removeAttribute('data-theme');
+  }
   if (a === 'toggle-noshop') { const d = +el.dataset.d; const no = S.config.noShopDays || []; saveConfig({ noShopDays: no.includes(d) ? no.filter(x => x !== d) : [...no, d] }); }
   if (a === 'del-store') { const s = (S.config.stores || []).slice(); s.splice(+el.dataset.i, 1); saveConfig({ stores: s }); }
   if (a === 'toggle-cday') { const c = findTask(id); if (!c) return; const d = +el.dataset.d; const days = c.rule?.days || []; saveChore({ ...c, rule: { ...c.rule, mode: 'days', days: days.includes(d) ? days.filter(x => x !== d) : [...days, d] } }); }
