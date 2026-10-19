@@ -28,10 +28,13 @@ if (-not $TesztNelkul) {
 if (-not $Uzenet) { $Uzenet = Read-Host 'Röviden: mit változtattunk? (Enter = "Frissítés")' }
 if (-not $Uzenet) { $Uzenet = 'Frissítés' }
 
-& $git add -A
-& $git commit -q -m $Uzenet
+# A git a figyelmeztetéseit (pl. soremelés) és a push állapotát stderr-re írja; ez nem hiba, ezért innentől csak a kilépési kódot nézzük.
+$ErrorActionPreference = 'Continue'
+& $git add -A 2>&1 | ForEach-Object { "$_" } | Write-Host -ForegroundColor DarkGray
+if ($LASTEXITCODE -ne 0) { Write-Host 'A git add nem sikerült.' -ForegroundColor Red; exit 1 }
+& $git commit -q -m $Uzenet 2>&1 | ForEach-Object { "$_" } | Write-Host -ForegroundColor DarkGray
 if ($LASTEXITCODE -ne 0) { Write-Host 'A commit nem sikerült.' -ForegroundColor Red; exit 1 }
-& $git push
+& $git push 2>&1 | ForEach-Object { "$_" } | Write-Host -ForegroundColor DarkGray
 if ($LASTEXITCODE -ne 0) { Write-Host 'A feltöltés nem sikerült. A változás helyben el van mentve, később újrapróbálható.' -ForegroundColor Red; exit 1 }
 
 Write-Host 'Kész. 1-2 perc múlva él: https://szerdori.github.io/hazi-naplo/' -ForegroundColor Green
