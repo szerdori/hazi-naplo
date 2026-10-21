@@ -500,7 +500,13 @@ function workEvents() {
     out.push({ t: e.t, cat, label, by: e.by || '' });
   }
   for (const td of S.todos) if (td.doneAt) out.push({ t: td.doneAt, cat: 'ToDo', label: td.title, by: td.doneBy || '' });
-  for (const it of S.items) for (const b of (it.bought || [])) out.push({ t: b.t, cat: 'Bevásárlás', label: 'Bevásárolt tétel', by: b.by || '' });
+  // One shopping trip is one unit of work, however many items were ticked: one per person per day.
+  const trips = {};
+  for (const it of S.items) for (const b of (it.bought || [])) {
+    const k = dayKey(b.t) + '|' + (b.by || '');
+    if (!trips[k] || b.t < trips[k].t) trips[k] = { t: b.t, cat: 'Bevásárlás', label: 'Bevásárlás', by: b.by || '' };
+  }
+  out.push(...Object.values(trips));
   return out;
 }
 const weekStart = t => addDays(t, -((new Date(t).getDay() + 6) % 7));

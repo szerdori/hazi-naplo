@@ -78,7 +78,45 @@ test('Ma: „Mára” kártya a reális nappal és az „elég mára” jelzéss
   has(app.text('.card.today'), 'elég');
 });
 
+test('Ma: a robotzónák és a családi ápolás is csak esedékesen látszik', async () => {
+  const app = await openApp({ setup: (w, db) => {
+    db.set('chores/konyha', { name: 'Konyha', group: 'robot', order: 0, rule: { mode: 'auto' } });
+    db.set('chores/halo', { name: 'Hálószoba', group: 'robot', order: 1, rule: { mode: 'auto' } });
+    [-9, -6, -3].forEach(d => db.log('konyha', d, 10));            // 3 naponta: ma esedékes
+    [-13, -6, -1].forEach(d => db.log('halo', d, 10));             // ~6 naponta, tegnap volt: nem esedékes
+    db.set('config/main', { ...db.store['config/main'], family: { people: [{ id: 'miro', name: 'Miró' }], activities: ['Hajmosás', 'Körömvágás'] } });
+    [-21, -14, -7, -1].forEach(d => db.log('fam-miro--koromvagas', d, 19)); // hetente, tegnap volt: nem esedékes
+  } });
+  const robot = app.section('Robotporszívó');
+  ok(robot, 'van esedékes zóna, ezért látszik a szekció');
+  ok(robot.textContent.includes('Konyha') && !robot.textContent.includes('Hálószoba'), 'csak az esedékes zóna látszik');
+  ok(app.restNames().includes('Hálószoba'), 'a nem esedékes zóna a Többi között');
+  const fam = app.section('Család').textContent;
+  ok(fam.includes('Hajmosás'), 'adat nélkül (tanulási szakasz) látszik');
+  ok(!fam.includes('Körömvágás'), 'a nem esedékes ápolás nem látszik');
+  ok(app.$('details[data-person=ma-tobbi]').textContent.includes('Körömvágás'), 'a Többi között megvan');
+});
+
+test('Ma: üres szekció nem jelenik meg', async () => {
+  const app = await openApp({ setup: (w, db) => {
+    db.set('chores/halo', { name: 'Hálószoba', group: 'robot', order: 0, rule: { mode: 'auto' } });
+    [-13, -6, -1].forEach(d => db.log('halo', d, 10));
+  } });
+  ok(!app.section('Robotporszívó'), 'ha egy zóna sem esedékes, a Robotporszívó szekció nem látszik');
+});
+
 // ---------- Statisztika ----------
+test('Statisztika: egy bevásárlás egy munkának számít, akárhány tételt vettünk', async () => {
+  const app = await openApp({ tab: 'naplo', setup: (w, db) => {
+    const t = Date.now() - 3600e3;
+    // only today's trip: four items ticked by the same person on the same day
+    ['tej', 'kenyer', 'pelenka', 'alma'].forEach(id => db.set('items/' + id, { ...db.store['items/' + id], bought: [{ t, store: 'Lidl', by: 'en@x.hu' }] }));
+  } });
+  const cats = app.$('.cats').textContent;
+  ok(/Bevásárlás\s*1(?!\d)/.test(cats), 'a heti bontásban 1 bevásárlás: ' + cats);
+  has(app.$('.card.week .chips').textContent, 'Bevásárlás ×1');
+});
+
 test('Statisztika: heti összesítő, virág, grafikonok', async () => {
   const app = await openApp({ tab: 'naplo' });
   ok(app.$('.card.week'), 'van heti kártya');

@@ -24,21 +24,19 @@ export function shouldSend(sub, now, kind = 'evening') {
   return now.minutes >= at && now.minutes < at + 120;
 }
 
-// Work the user logged today: chores and visits, bought items, finished todos.
-// Entries from before "by" was recorded count for everyone, like in the app.
+// Work the user logged today: chores and visits, finished todos, and shopping — a shopping trip counts as
+// one unit however many items were ticked, like in the app. Entries from before "by" was recorded count for everyone.
 export function todayWork(email, now, { logsDoc, items = [], todos = [] }) {
   const mine = by => !by || by === email;
   const sameDay = t => budapestNow(new Date(t)).day === now.day;
   const labels = [];
   for (const e of logsDoc?.entries || []) if (mine(e.by)) labels.push(e.name || 'egyéb');
-  let bought = 0;
-  for (const it of items) for (const b of it.bought || []) if (mine(b.by) && sameDay(b.t)) bought++;
+  const shopped = items.some(it => (it.bought || []).some(b => mine(b.by) && sameDay(b.t)));
+  if (shopped) labels.push('Bevásárlás');
   for (const td of todos) if (td.doneAt && mine(td.doneBy) && sameDay(td.doneAt)) labels.push(td.title);
   const tally = {};
   for (const l of labels) tally[l] = (tally[l] || 0) + 1;
-  const list = Object.entries(tally).sort((a, b) => b[1] - a[1]);
-  if (bought) list.push([bought + ' tétel bevásárlás', 1]);
-  return { count: labels.length + bought, list };
+  return { count: labels.length, list: Object.entries(tally).sort((a, b) => b[1] - a[1]) };
 }
 export const todayCount = (email, now, data) => todayWork(email, now, data).count;
 

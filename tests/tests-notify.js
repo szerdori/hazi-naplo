@@ -33,6 +33,11 @@ test('Értesítés: esti üzenet szintjei, nem nyaggat', async () => {
   eq(L.buildMessage(sub, now, { logsDoc: entries(10), status }).title, 'Hatalmas nap volt!');
   eq(L.buildMessage({ ...sub, summary: false, due: false }, now, { logsDoc: entries(3), status }), null, 'mindent kikapcsolva nincs üzenet');
   eq(L.todayCount('en@x.hu', now, { logsDoc: { entries: [{ by: 'ferj@x.hu' }, { by: 'en@x.hu' }] } }), 1, 'a másik ember bejegyzése nem számít');
+  const t = new Date('2026-10-12T15:00:00Z').getTime();
+  const shop = [{ bought: [{ t, by: 'en@x.hu' }] }, { bought: [{ t, by: 'en@x.hu' }] }, { bought: [{ t, by: 'en@x.hu' }] }];
+  const w = L.todayWork('en@x.hu', now, { logsDoc: { entries: [{ by: 'en@x.hu', name: 'Mosás' }] }, items: shop });
+  eq(w.count, 2, 'három megvett tétel egy bevásárlás');
+  ok(w.list.some(([l, n]) => l === 'Bevásárlás' && n === 1), 'a felsorolásban „Bevásárlás”');
 });
 
 test('Értesítés: reggeli üzenet', async () => {
