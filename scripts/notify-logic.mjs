@@ -10,18 +10,20 @@ export function budapestNow(date = new Date()) {
 }
 
 // Each kind has its own switch, time and "already sent today" marker on the device's push document.
+// `until` (minutes after midnight, Budapest) is the latest a late run may still send: GitHub's scheduler
+// often starts runs hours late, so a missed slot is better delivered late than not at all.
 export const KINDS = {
-  morning: { on: 'morning', time: 'morningTime', last: 'lastSentMorning', def: '07:30' },
-  evening: { on: 'evening', time: 'time', last: 'lastSent', def: '20:00' },
+  morning: { on: 'morning', time: 'morningTime', last: 'lastSentMorning', def: '07:30', until: 11 * 60 },
+  evening: { on: 'evening', time: 'time', last: 'lastSent', def: '20:00', until: 24 * 60 },
 };
 
-// Send once a day, at or after the chosen time; the window is wide because scheduled runs can start late.
+// Send once a day, at or after the chosen time, and no later than the kind's `until` (or 2 hours after the time, if later).
 export function shouldSend(sub, now, kind = 'evening') {
   const k = KINDS[kind];
   if (!sub || !sub.token || sub[k.on] === false || sub[k.last] === now.day) return false;
   const [h, m] = String(sub[k.time] || k.def).split(':').map(Number);
   const at = h * 60 + m;
-  return now.minutes >= at && now.minutes < at + 120;
+  return now.minutes >= at && now.minutes < Math.max(at + 120, k.until);
 }
 
 // Work the user logged today: chores and visits, finished todos, and shopping — a shopping trip counts as

@@ -16,7 +16,11 @@ test('Értesítés: mikor küld (időablak, naponta egyszer, kikapcsolva)', asyn
   eq(L.shouldSend(sub, now, 'evening'), true);
   eq(L.shouldSend({ ...sub, lastSent: '2026-10-12' }, now, 'evening'), false, 'ma már ment');
   eq(L.shouldSend({ ...sub, time: '20:30' }, now, 'evening'), false, 'még nincs itt az ideje');
-  eq(L.shouldSend({ ...sub, time: '17:00' }, now, 'evening'), false, '2 óránál régebbi időpont');
+  eq(L.shouldSend({ ...sub, time: '17:00' }, now, 'evening'), true, 'késve indult futás este még küld');
+  eq(L.shouldSend(sub, { day: now.day, minutes: 23 * 60 + 55 }, 'evening'), true, 'éjfél előtt még küld');
+  eq(L.shouldSend(sub, { day: now.day, minutes: 10 * 60 + 55 }, 'morning'), true, 'reggeli 11-ig még mehet');
+  eq(L.shouldSend(sub, { day: now.day, minutes: 11 * 60 + 5 }, 'morning'), false, '11 után már nem reggeli');
+  eq(L.shouldSend({ ...sub, morningTime: '09:30' }, { day: now.day, minutes: 11 * 60 + 20 }, 'morning'), true, 'késői reggeli időpontnál 2 óra jár');
   eq(L.shouldSend({ ...sub, evening: false }, now, 'evening'), false, 'este kikapcsolva');
   eq(L.shouldSend(sub, morning, 'morning'), true, 'reggel 7:30 után');
   eq(L.shouldSend({ ...sub, morning: false }, morning, 'morning'), false, 'reggel kikapcsolva');

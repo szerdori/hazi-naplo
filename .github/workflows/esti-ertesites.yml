@@ -1,11 +1,12 @@
 # Reggel és este 20 percenként lefut, és elküldi azoknak a telefonoknak az értesítést, amelyeknél elérkezett a beállított időpont.
-# Az időpontok UTC-ben vannak, és télen-nyáron is lefedik a budapesti 6:00–9:30 (reggel) és 17:00–22:00 (este) közötti időt.
+# Az időpontok UTC-ben vannak, és télen-nyáron is lefedik a budapesti 6:00–11:00 (reggel) és 17:00–24:00 (este) közötti időt.
+# Páratlan percek (:07, :27, :47): a GitHub ütemezője a kerek perceken a legterheltebb, ott késik a legtöbbet.
 name: Esti értesítés
 
 on:
   schedule:
-    - cron: '*/20 4-8 * * *'
-    - cron: '*/20 15-21 * * *'
+    - cron: '7,27,47 4-9 * * *'
+    - cron: '7,27,47 15-22 * * *'
   workflow_dispatch:
 
 permissions:
