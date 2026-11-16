@@ -3,12 +3,16 @@
 #
 #   -Mode check   csak ellenőrzi, hogy a kulccsal be lehet-e jelentkezni
 #   -Mode last    kiírja az előző sikeres feltöltés idejét (Unix másodperc), vagy azt, hogy "nincs"
+#   -Mode ids     kiírja a naptárból az elmúlt -Napok napban (alapból 20) már felvett javaslatok azonosítóit
+#                 (soronként egy "cal-..." azonosító), vagy azt, hogy "nincs". Így a napi átnézésnek nem kell
+#                 újra megírnia azokat az eseményeket, amelyek a 14 napos ablakban már korábban is szerepeltek.
 #   -Mode upload  -File <javaslatok.json>  feltölti a javaslatokat, és elmenti a feltöltés idejét
 #
 # A javaslatok.json egy tömb: [{ "id", "title", "deadline" (YYYY-MM-DD vagy ""), "source", "note", "link", "for" }]
 param(
-  [ValidateSet('check', 'last', 'upload')][string]$Mode = 'check',
+  [ValidateSet('check', 'last', 'ids', 'upload')][string]$Mode = 'check',
   [string]$File,
+  [int]$Napok = 20,
   [string]$KeyPath = (Join-Path $env:USERPROFILE '.momassistant\kulcs.json'),
   [string]$Project = 'hazi-naplo'
 )
@@ -48,6 +52,25 @@ function Get-LastRun {
 
 if ($Mode -eq 'check') { $null = Get-LastRun; Write-Output 'OK: a kulcs működik, az adatbázis elérhető.'; exit 0 }
 if ($Mode -eq 'last') { $l = Get-LastRun; if ($l) { Write-Output $l } else { Write-Output 'nincs' }; exit 0 }
+if ($Mode -eq 'ids') {
+  # Csak a dokumentumnevek kellenek: a mask miatt a válaszban egyedül a createdAt mező jön le.
+  $since = [DateTimeOffset]::UtcNow.AddDays(-$Napok).ToUnixTimeMilliseconds()
+  $ids = New-Object 'System.Collections.Generic.List[string]'
+  $token = $null
+  do {
+    $uri = "$base/suggestions?pageSize=300&mask.fieldPaths=createdAt"
+    if ($token) { $uri += '&pageToken=' + [uri]::EscapeDataString($token) }
+    $r = Invoke-RestMethod -Uri $uri -Headers $headers
+    foreach ($d in @($r.documents)) {
+      if (-not $d) { continue }
+      $id = $d.name.Substring($d.name.LastIndexOf('/') + 1)
+      if ($id.StartsWith('cal-') -and [long]$d.fields.createdAt.integerValue -ge $since) { $ids.Add($id) }
+    }
+    $token = $r.nextPageToken
+  } while ($token)
+  if ($ids.Count) { Write-Output ($ids -join "`n") } else { Write-Output 'nincs' }
+  exit 0
+}
 
 if (-not $File -or -not (Test-Path $File)) { Write-Output 'HIBA: add meg a javaslatok fájlját (-File).'; exit 4 }
 # PS 5.1-ben a ConvertFrom-Json egyben adja vissza a tömböt, ezért szét kell bontani
