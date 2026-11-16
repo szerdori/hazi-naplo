@@ -14,7 +14,6 @@ Házimunka- és bevásárlásnapló. A bejegyzésekből megtanulja, mit milyen g
 | `firebase-config.js` | a Firebase-projekt webes beállításai |
 | `firestore.rules` | hozzáférési szabályok mintája (élesben a Firebase konzolban él) |
 | `manifest.webmanifest`, `icon*` | kezdőképernyőre tehető app ikonja és neve |
-| `hazi-naplo.html` | a korábbi, claude.ai-on futó prototípus (átköltözés után törölhető) |
 
 ## Első beállítás
 
@@ -43,7 +42,7 @@ Nyisd meg a címet a telefonon, lépj be Google-fiókkal, majd:
 - **Android (Chrome):** menü → *Hozzáadás a kezdőképernyőhöz*
 - **iPhone (Safari):** Megosztás → *Főképernyőhöz adás*
 
-## Esti értesítés (Android)
+## Értesítések (Android)
 - **Reggel** (alapból 7:30, 6:00–9:30 között állítható): a mára esedékes teendők. Ha nincs semmi esedékes, nem jön értesítés.
 - **Este** (alapból 20:00, 17:00–22:00 között állítható): napi összefoglaló egy kis vállveregetéssel, illetve szól, ha aznap még nem rögzítettél semmit, vagy ha maradt esedékes teendő. Ha már megvan a reális napod, az esedékes teendőket nem sorolja.
 - Mindkettő és az esti részek külön kapcsolhatók: **Beállítások → Értesítések**.
@@ -56,7 +55,7 @@ Egyszeri beállítás:
    - GitHub: a tárolóban **Settings → Secrets and variables → Actions → New repository secret**
    - Name: `FIREBASE_SERVICE_ACCOUNT`, Secret: a letöltött fájl teljes tartalma (Jegyzettömbbel megnyitva, mindent kijelölve)
    - Utána töröld a letöltött fájlt a gépről. Ezt a kulcsot ne küldd el senkinek, chatbe se.
-3. **Telefonon:** nyisd meg az appot (lehetőleg a kezdőképernyőről), **Beállítások → Esti értesítés → Bekapcsolás ezen a telefonon**, és engedélyezd az értesítéseket. A **Próbaértesítés** gombbal ellenőrizheted, hogy megjelenik-e.
+3. **Telefonon:** nyisd meg az appot (lehetőleg a kezdőképernyőről), **Beállítások → Értesítések → Bekapcsolás ezen a telefonon**, és engedélyezd az értesítéseket. A **Próbaértesítés** gombbal ellenőrizheted, hogy megjelenik-e.
 4. **Ellenőrzés:** a GitHub-tárolóban az **Actions** fülön látszanak a futások. Kézzel is indítható: **Esti értesítés → Run workflow**.
 
 Tudnivalók:
@@ -72,8 +71,8 @@ Hetente egyszer az egész adatbázis JSON-fájlokba mentődik a gépre (`%USERPR
 - **Állapot:** `.\scripts\heti-mentes.ps1 -Allapot`. Ha egy mentés nem sikerült, a következő munkamenet elején a Claude szól róla.
 - **Kézi mentés bármikor:** `.\scripts\export-firestore.ps1 -Megtart 2`
 
-## Adatok átköltöztetése a prototípusból
-A claude.ai-os változatban: **Szabályok → Adatok → Adatok másolása (JSON)**. Az új appban: **Szabályok → Adatok → Importálás**, majd illeszd be és nyomd meg a **Betöltés** gombot.
+## Adatok kimásolása és visszatöltése az appban
+**Beállítások → Adatok → Adatok másolása (JSON)**: az összes adat kimásolható. Visszatöltés: **Beállítások → Adatok → Importálás**, majd illeszd be a szöveget, és nyomd meg a **Betöltés** gombot. Ez más formátum, mint a heti helyi mentés.
 
 ## Regressziós tesztek
 A `tests` mappában van egy tesztkészlet, ami végigpróbálja az app funkcióit: Ma fül, statisztika, bevásárlás, ToDo, javaslatok, családi ápolás, játszótér, beállítások és az értesítések logikája. A tesztek egy láthatatlan Edge böngészőben futnak, egy memóriabeli, kitalált adatbázison (`tests/mock-db.js`), így a valódi adatokhoz és a Firebase-hez nem nyúlnak.
