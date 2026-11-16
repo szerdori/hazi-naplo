@@ -6,12 +6,14 @@
 #   -Mode ids     kiírja a naptárból az elmúlt -Napok napban (alapból 20) már felvett javaslatok azonosítóit
 #                 (soronként egy "cal-..." azonosító), vagy azt, hogy "nincs". Így a napi átnézésnek nem kell
 #                 újra megírnia azokat az eseményeket, amelyek a 14 napos ablakban már korábban is szerepeltek.
-#   -Mode upload  -File <javaslatok.json>  feltölti a javaslatokat, és elmenti a feltöltés idejét
+#   -Mode upload  -File <javaslatok.json>  feltölti a javaslatokat, és elmenti a feltöltés idejét.
+#                 -TorolUtana: hibátlan feltöltés után törli a fájlt (így a következő futás újként írhatja meg).
 #
 # A javaslatok.json egy tömb: [{ "id", "title", "deadline" (YYYY-MM-DD vagy ""), "source", "note", "link", "for" }]
 param(
   [ValidateSet('check', 'last', 'ids', 'upload')][string]$Mode = 'check',
   [string]$File,
+  [switch]$TorolUtana,
   [int]$Napok = 20,
   [string]$KeyPath = (Join-Path $env:USERPROFILE '.momassistant\kulcs.json'),
   [string]$Project = 'hazi-naplo'
@@ -93,4 +95,5 @@ foreach ($s in $items) {
   }
 }
 $null = Send-Json 'Patch' "$base/meta/javaslatok" @{ fields = @{ lastRun = @{ integerValue = [string][DateTimeOffset]::UtcNow.ToUnixTimeSeconds() } } }
+if ($TorolUtana -and $failed -eq 0) { Remove-Item -LiteralPath $File }
 Write-Output "Kész: $added új javaslat, $existing már korábban megvolt, $failed hibás."
