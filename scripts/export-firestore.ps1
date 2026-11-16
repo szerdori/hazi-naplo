@@ -5,8 +5,7 @@
 #
 # Használat:  .\scripts\export-firestore.ps1            (mentés, a legutóbbi 12 mentést tartja meg)
 #             .\scripts\export-firestore.ps1 -Megtart 30
-# Ütemezés (hetente, vasárnap 20:00), egyszer kell lefuttatni:
-#   schtasks /Create /TN "MomAssistant mentes" /SC WEEKLY /D SUN /ST 20:00 /TR "powershell -NoProfile -ExecutionPolicy Bypass -File \"$PWD\scripts\export-firestore.ps1\""
+# Ütemezés: a heti-mentes.ps1 hetente egyszer, a Claude indulásakor futtatja (-Megtart 2), lásd annak a leírását.
 # Kilépési kód: 0 = kész, 2 = nincs kulcsfájl, 3 = a bejelentkezés nem sikerült, 4 = a mentés közben hiba történt.
 # Korlát: csak a legfelső szintű gyűjteményeket menti (algyűjteményeket nem); az app ma nem használ ilyet.
 param(

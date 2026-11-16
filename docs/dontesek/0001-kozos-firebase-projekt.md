@@ -20,6 +20,6 @@ Nincs külön fiók- és jogosultságkezelés, nincs külön számlázás és ni
 - **Adatvesztés.** A Firestore nem ad automatikus, könnyen visszaállítható mentést ebben a beállításban.
 
 ## Következmények
-- Hetente helyi mentés készül: `scripts/export-firestore.ps1` (ütemezése a fájl elején le van írva). A mentés a gépen marad, nem kerülhet a nyilvános tárolóba vagy GitHub Actions artifactba.
+- Hetente helyi mentés készül: `scripts/export-firestore.ps1`. Ütemezője a `scripts/heti-mentes.ps1`: Claude Code SessionStart hookként fut, és ha a legfrissebb mentés legalább 7 napos, a háttérben ment. Csak az utolsó 2 mentés marad meg. A mentés a gépen marad, nem kerülhet a nyilvános tárolóba vagy GitHub Actions artifactba.
 - Új gyűjteményt csak egyértelmű előtaggal vegyünk fel (`kapitany_`, `kettesben` stb.), és a mentés automatikusan viszi minden legfelső szintű gyűjteményt.
 - Ha a közös projekt kockázata egyszer többe kerül, mint amit a kényelme ér, az adott app külön projektet kap (mint a DMScreen, lásd annak 0002 döntését).

@@ -64,6 +64,14 @@ Tudnivalók:
 - A GitHub az ütemezett futásokat néha 5–20 percet késve indítja, ezért az értesítés a beállított időpont után kicsivel érkezhet.
 - Ha a tárolóban 60 napig nem történik változás, a GitHub szünetelteti az ütemezést; ilyenkor az Actions fülön egy gombbal újra bekapcsolható.
 
+## Helyi mentés
+Hetente egyszer az egész adatbázis JSON-fájlokba mentődik a gépre (`%USERPROFILE%\.momassistant\mentesek\`). Csak az utolsó 2 mentés marad meg. A mentés családi adatokat tartalmaz, ezért soha nem kerül a tárolóba.
+
+- **Indítás:** a Claude (Desktop vagy Claude Code) új munkamenetének indulásakor a `scripts/heti-mentes.ps1` megnézi, hány napos a legfrissebb mentés. Ha legalább 7, a háttérben elindítja a `scripts/export-firestore.ps1`-et. Ha egy hétig nem indítod el a Claude-ot, nem készül mentés.
+- **Egyszeri beállítás** a projektmappában: `.\scripts\heti-mentes.ps1 -Telepites`
+- **Állapot:** `.\scripts\heti-mentes.ps1 -Allapot`. Ha egy mentés nem sikerült, a következő munkamenet elején a Claude szól róla.
+- **Kézi mentés bármikor:** `.\scripts\export-firestore.ps1 -Megtart 2`
+
 ## Adatok átköltöztetése a prototípusból
 A claude.ai-os változatban: **Szabályok → Adatok → Adatok másolása (JSON)**. Az új appban: **Szabályok → Adatok → Importálás**, majd illeszd be és nyomd meg a **Betöltés** gombot.
 
