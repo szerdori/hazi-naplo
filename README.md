@@ -61,7 +61,7 @@ Egyszeri beállítás:
 Tudnivalók:
 - A futások naplója nyilvános, ezért a program csak darabszámokat ír ki, nevet, e-mailt vagy teendőt soha.
 - A GitHub az ütemezett futásokat néha 5–20 percet késve indítja, ezért az értesítés a beállított időpont után kicsivel érkezhet.
-- Ha a tárolóban 60 napig nem történik változás, a GitHub szünetelteti az ütemezést; ilyenkor az Actions fülön egy gombbal újra bekapcsolható.
+- Ha a tárolóban 60 napig nem történik változás, a GitHub szünetelteti az ütemezést. Ezt a `.github/workflows/eletjel.yml` előzi meg: havonta egyszer újra bekapcsolja az ütemezést. Ha mégis leállna, az Actions fülön egy gombbal újra bekapcsolható.
 
 ## Helyi mentés
 Hetente egyszer az egész adatbázis JSON-fájlokba mentődik a gépre (`%USERPROFILE%\.momassistant\mentesek\`). Csak az utolsó 2 mentés marad meg. A mentés családi adatokat tartalmaz, ezért soha nem kerül a tárolóba.

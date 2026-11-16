@@ -1,0 +1,27 @@
+# A GitHub 60 nap tárolói tevékenység nélkül szünetelteti az ütemezett workflow-kat, és akkor az értesítések szó nélkül elmaradnának.
+# Ez havonta egyszer az API-n keresztül újra bekapcsolja az értesítő workflow-t és saját magát, ami újraindítja a 60 napos számlálót.
+# Nem commitol semmit, a naplóba csak a workflow-k fájlneve kerül.
+name: Ütemezés életben tartása
+
+on:
+  schedule:
+    - cron: '13 3 1 * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  eletjel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ütemezett workflow-k újra bekapcsolása
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          for wf in esti-ertesites.yml eletjel.yml; do
+            gh api -X PUT "repos/$REPO/actions/workflows/$wf/enable"
+            echo "bekapcsolva: $wf"
+          done
